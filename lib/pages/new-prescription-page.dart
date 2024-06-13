@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
 
+import 'prescription-preview-page.dart';
+import 'package:rxpro_app/prescription-form.dart';
 import 'package:rxpro_app/responsive-layout.dart';
 import 'package:rxpro_app/style.dart';
 
@@ -89,11 +93,30 @@ class _DesktopBodyState extends State<_DesktopBody> {
           Padding(
             padding: const EdgeInsets.only(right: 36),
             child: TextButton(
-              onPressed: () {
-                if (_prescriptions.isEmpty) {
-                  // TODO: snack bar message - no prescription entered
-                }
-              },
+              onPressed: (_prescriptions.isEmpty)
+                  ? null
+                  : () async {
+                      // PrescriptionForm prescriptionForm = PrescriptionForm(
+                      //   clinicName: 'ABCD Clinic',
+                      //   clinicAddress: '1234 Somewhere Street, Fiction City',
+                      //   doctorName: 'Juan C. Dela Cruz',
+                      //   prescriptions: _prescriptions,
+                      // );
+                      // await Printing.layoutPdf(
+                      //   name: 'prescription-sample',
+                      //   format: PdfPageFormat.a5,
+                      //   onLayout: (PdfPageFormat format) async =>
+                      //       prescriptionForm.save(),
+                      // );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PrescriptionPreviewPage(
+                            prescriptions: _prescriptions,
+                          ),
+                        ),
+                      );
+                    },
               style: lightButtonStyle,
               child: const Text('Done'),
             ),
@@ -181,21 +204,24 @@ class _DesktopBodyState extends State<_DesktopBody> {
                                   value: 'F',
                                   child: Text(
                                     'FEMALE',
-                                    style: TextStyle(fontWeight: FontWeight.w400),
+                                    style:
+                                        TextStyle(fontWeight: FontWeight.w400),
                                   ),
                                 ),
                                 DropdownMenuItem(
                                   value: 'M',
                                   child: Text(
                                     'MALE',
-                                    style: TextStyle(fontWeight: FontWeight.w400),
+                                    style:
+                                        TextStyle(fontWeight: FontWeight.w400),
                                   ),
                                 ),
                                 DropdownMenuItem(
                                   value: 'I',
                                   child: Text(
                                     'INTERSEX',
-                                    style: TextStyle(fontWeight: FontWeight.w400),
+                                    style:
+                                        TextStyle(fontWeight: FontWeight.w400),
                                   ),
                                 ),
                               ],
