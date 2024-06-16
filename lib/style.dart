@@ -33,8 +33,8 @@ ButtonStyle lightButtonStyle = TextButton.styleFrom(
   backgroundColor: Colors.white,
   shadowColor: Colors.grey,
   elevation: 3,
-  side: BorderSide(color: LIGHT, width: 1.5),
-  padding: EdgeInsets.symmetric(horizontal: 8),
+  side: const BorderSide(color: LIGHT, width: 1.5),
+  padding: const EdgeInsets.symmetric(horizontal: 8),
 );
 
 class UpperCaseTextFormatter extends TextInputFormatter {
