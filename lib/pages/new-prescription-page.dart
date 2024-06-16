@@ -124,11 +124,17 @@ class _MobileBodyState extends State<_MobileBody> {
             child: TextButton(
               onPressed: (_isPrescriptionValid())
                   ? () async {
+                      setState(() {
+                        _prescriptionFieldFocusNode.unfocus();
+                      });
                       final isClosed = await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => PrescriptionPreviewPage(
                             prescriptions: _prescriptions,
+                            patientName: _nameFieldController.value.text,
+                            patientAge: _ageFieldController.value.text,
+                            patientSex: _patientsSex ?? 'N/A',
                           ),
                         ),
                       );
@@ -347,10 +353,11 @@ class _MobileBodyState extends State<_MobileBody> {
                       : 'Updated prescription',
                   suffix: (_selectedPrescriptionIndex < 0)
                       ? TextButton(
-                          onPressed: (_prescriptionFieldController.value.text.isEmpty)
-                              ? null
-                              : () => _addPrescription(
-                                  _prescriptionFieldController.value.text),
+                          onPressed:
+                              (_prescriptionFieldController.value.text.isEmpty)
+                                  ? null
+                                  : () => _addPrescription(
+                                      _prescriptionFieldController.value.text),
                           child: const Text('Add'),
                         )
                       : TextButton(
@@ -386,6 +393,9 @@ class _DesktopBodyState extends State<_DesktopBody> {
   String? _patientsSex;
 
   void _addPrescription(String prescription) {
+    if (_prescriptionFieldController.text.isEmpty) {
+      return;
+    }
     setState(() {
       _prescriptions.add(prescription);
       _prescriptionFieldController.clear();
@@ -430,6 +440,17 @@ class _DesktopBodyState extends State<_DesktopBody> {
     return _prescriptions.isNotEmpty && isPatientInfoComplete;
   }
 
+  void _clearPrescription() {
+    setState(() {
+      _prescriptions.clear();
+      _prescriptionFieldController.clear();
+      _selectedPrescriptionIndex = -1;
+      _nameFieldController.clear();
+      _ageFieldController.clear();
+      _patientsSex = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -440,23 +461,43 @@ class _DesktopBodyState extends State<_DesktopBody> {
           style: TextStyle(color: Colors.white),
         ),
         actions: [
+          TextButton(
+            style: TextButton.styleFrom(
+              backgroundColor: PURPLE.withAlpha(70),
+              foregroundColor: LIGHT,
+              disabledForegroundColor: LIGHT.withAlpha(90),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+            onPressed: _clearPrescription,
+            child: const Text('Reset'),
+          ),
           Padding(
-            padding: const EdgeInsets.only(right: 36),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             child: TextButton(
               onPressed: (_isPrescriptionValid())
                   ? () async {
-                      Navigator.push(
+                      setState(() {
+                        _prescriptionFieldFocusNode.unfocus();
+                      });
+                      final isClosed = await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => PrescriptionPreviewPage(
                             prescriptions: _prescriptions,
+                            patientName: _nameFieldController.value.text,
+                            patientAge: _ageFieldController.value.text,
+                            patientSex: _patientsSex ?? 'N/A',
                           ),
                         ),
                       );
+
+                      if (isClosed != null && isClosed) {
+                        _clearPrescription();
+                      }
                     }
                   : null,
               style: lightButtonStyle,
-              child: const Text('Done'),
+              child: const Text('Print'),
             ),
           ),
         ],
@@ -545,15 +586,15 @@ class _DesktopBodyState extends State<_DesktopBody> {
                               value: _patientsSex,
                               items: const [
                                 DropdownMenuItem(
-                                  value: 'F',
+                                  value: 'FEMALE',
                                   child: Text('FEMALE'),
                                 ),
                                 DropdownMenuItem(
-                                  value: 'M',
+                                  value: 'MALE',
                                   child: Text('MALE'),
                                 ),
                                 DropdownMenuItem(
-                                  value: 'I',
+                                  value: 'INTERSEX',
                                   child: Text('INTERSEX'),
                                 ),
                               ],
@@ -652,14 +693,18 @@ class _DesktopBodyState extends State<_DesktopBody> {
                     _updatePrescription();
                   }
                 },
+                onChanged: (text) => setState(() {}),
                 decoration: lightTextFieldStyle.copyWith(
                   hintText: (_selectedPrescriptionIndex < 0)
                       ? 'New prescription'
                       : 'Updated prescription',
                   suffix: (_selectedPrescriptionIndex < 0)
                       ? TextButton(
-                          onPressed: () => _addPrescription(
-                              _prescriptionFieldController.value.text),
+                          onPressed:
+                              (_prescriptionFieldController.value.text.isEmpty)
+                                  ? null
+                                  : () => _addPrescription(
+                                      _prescriptionFieldController.value.text),
                           child: const Text('Add'),
                         )
                       : TextButton(
