@@ -17,7 +17,7 @@ class ResponsiveLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
-      Layout currentLayout = this.layouts.firstWhere((element) => constraints.maxWidth < element.breakpoint);
+      Layout currentLayout = layouts.firstWhere((element) => constraints.maxWidth < element.breakpoint);
       return currentLayout.body;
     });
   }
