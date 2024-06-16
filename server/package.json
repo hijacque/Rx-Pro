@@ -1,0 +1,14 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "Rx Pro application server",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Hannah Jacqueline",
+  "license": "ISC",
+  "dependencies": {
+    "serialport-gsm": "^4.0.1"
+  }
+}
