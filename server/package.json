@@ -9,6 +9,7 @@
   "author": "Hannah Jacqueline",
   "license": "ISC",
   "dependencies": {
+    "serialport": "^12.0.0",
     "serialport-gsm": "^4.0.1"
   }
 }
