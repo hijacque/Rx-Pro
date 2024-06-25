@@ -1,29 +1,72 @@
-const serialGSM = require('serialport-gsm');
+const { SerialPort } = require('serialport');
+const { ReadlineParser } = require('@serialport/parser-readline')
 
-const modem = serialGSM.Modem();
-let options = {
-    baudRate: 115200,
-    dataBits: 8,
-    stopBits: 1,
-    parity: 'none',
-    rtscts: false,
-    xon: false,
-    xoff: false,
-    xany: false,
-    autoDeleteOnReceive: true,
-    enableConcatenation: true,
-    incomingCallIndication: true,
-    incomingSMSIndication: true,
-    pin: '',
-    customInitCommand: '',
-    cnmiCommand: 'AT+CNMI=2,1,0,2,1',
-    logger: console
-};
+// Example usage:
+const phoneNumber = '+639458301808'; // Replace with recipient's phone number
+const message = 'Hello from Node.js!';
 
-modem.open('COM1', options, () => console.log('Modem opened.'));
-modem.on('open', data => {
-    modem.initializeModem(() => console.log('Modem initialized.'));
-    modem.sendSMS('639458301808', 'Hello! Testing usb modem.', true, (data) => {
-        console.log(data);
-    });
+var port = new SerialPort({
+    path: 'COM27',
+    // path: 'USB\\VID_12D1&PID_14AC&MI_03\\8&19E72F8C&0&0003',
+    baudRate: 9600,
+    autoOpen: true,
 });
+
+port.on('open', async (err) => {
+    if (err) {
+        return console.log('Error opening port: ', err.message);
+    }
+
+    console.log('Port opened.');
+    await sendSMS(phoneNumber, message);
+    port.close();
+});
+
+// Read data that is available but keep the stream in "paused mode"
+port.on('readable', function () {
+    console.log('Data:', port.read());
+});
+
+// Switches the port into "flowing mode"
+port.on('data', function (data) {
+    console.log('Data:', data);
+});
+
+
+const parser = new ReadlineParser({ delimiter: '\r\n' });
+port.pipe(parser);
+
+parser.on('data', data => {
+    console.log('Received:', data);
+});
+
+// Function to send AT commands and handle responses
+function sendATCommand(command) {
+    return new Promise((resolve, reject) => {
+        port.write(command, err => {
+            if (err) {
+                reject(err);
+            }
+        });
+        port.write('\r', err => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(true);
+            }
+        })
+    });
+}
+
+async function sendSMS(phoneNumber, message) {
+    try {
+        await sendATCommand('AT+CMGF=1'); // Set SMS text mode
+        let reply = await sendATCommand(`AT+CMGS="${phoneNumber}"`); // Specify the phone number
+        console.log(reply);
+        await sendATCommand(message); // Send the message
+        await sendATCommand(String.fromCharCode(26)); // Send Ctrl+Z char
+        console.log('SMS sent successfully');
+    } catch (err) {
+        console.error('Error sending SMS:', err);
+    }
+}
