@@ -26,15 +26,11 @@ class PrescriptionForm {
     required this.patientAge,
     required this.patientSex,
   }) {
-    // TODO: check total pages needed
     _generate();
     totalPages = 1;
   }
 
   void _generate({PdfPageFormat format = PdfPageFormat.a5}) async {
-    // TODO: layout the prescription form (header, page number*, and patient's info)
-    // TODO: adjust form layout if prescription exceeds the page
-    // TODO: Add footer for doctor's signature
     final header = await _header();
     _document.addPage(
       MultiPage(
@@ -92,7 +88,7 @@ class PrescriptionForm {
             ),
             ListView.builder(
               spacing: 10,
-              padding: EdgeInsets.only(left: 12),
+              padding: const EdgeInsets.only(left: 12),
               itemBuilder: (context, index) {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,

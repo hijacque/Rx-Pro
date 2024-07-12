@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:rxpro_app/pages/new-prescription-page.dart';
 import 'package:rxpro_app/pages/doctor-home-page.dart';
 
 void main() {
@@ -19,11 +18,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      routes: {
-        '/doctor': (context) => const DoctorHomePage(),
-        '/rx': (context) => const PrescriptionPage(),
-      },
-      initialRoute: '/doctor',
+      home: const DoctorHomePage(),
     );
   }
 }
