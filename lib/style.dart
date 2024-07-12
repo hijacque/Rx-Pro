@@ -37,6 +37,26 @@ ButtonStyle lightButtonStyle = TextButton.styleFrom(
   padding: const EdgeInsets.symmetric(horizontal: 8),
 );
 
+const Decoration lightContainerDecoration = BoxDecoration(
+  boxShadow: [
+    BoxShadow(
+      color: Colors.black26,
+      spreadRadius: 0.5,
+      blurRadius: 4,
+    ),
+  ],
+  color: Colors.white,
+  borderRadius: BorderRadius.all(Radius.circular(8)),
+);
+
+ButtonStyle primaryButtonStyle = TextButton.styleFrom(
+  backgroundColor: INDIGO,
+  shadowColor: Colors.grey,
+  elevation: 3,
+  side: const BorderSide(color: DARK, width: 1.5),
+  padding: const EdgeInsets.symmetric(horizontal: 8),
+);
+
 class UpperCaseTextFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
