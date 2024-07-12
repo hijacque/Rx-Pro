@@ -1,416 +1,747 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
-import 'prescription-preview-page.dart';
+import 'package:rxpro_app/pages/prescription-preview-page.dart';
+import 'package:rxpro_app/pages/patient-info-page.dart';
 import 'package:rxpro_app/responsive-layout.dart';
 import 'package:rxpro_app/style.dart';
+import 'package:rxpro_app/utils.dart';
+import 'package:rxpro_app/database.dart';
+import 'package:rxpro_app/doctor.dart';
+import 'package:rxpro_app/clinic.dart';
+import 'package:rxpro_app/patient.dart';
 
-class _MobileBody extends StatefulWidget {
-  const _MobileBody({super.key});
+const Map<int, String> sex = {1: 'MALE', 2: 'FEMALE', 3: 'INTERSEX'};
+
+class SearchPatientDialog extends StatefulWidget {
+  const SearchPatientDialog({super.key});
 
   @override
-  State<_MobileBody> createState() => _MobileBodyState();
+  State<SearchPatientDialog> createState() => _SearchPatientDialogState();
 }
 
-class _MobileBodyState extends State<_MobileBody> {
-  final TextEditingController _prescriptionFieldController =
-      TextEditingController();
-  final TextEditingController _nameFieldController = TextEditingController();
-  final TextEditingController _ageFieldController = TextEditingController();
-  final FocusNode _prescriptionFieldFocusNode = FocusNode();
-  final List<String> _prescriptions = [];
+class _SearchPatientDialogState extends State<SearchPatientDialog> {
+  late final RxProDbHelper _dbHelper;
+  List<Map<String, dynamic>> _patients = [];
 
-  int _selectedPrescriptionIndex = -1;
-  String? _patientsSex;
-  bool _isPrescribing = false;
-
-  void _addPrescription(String prescription) {
-    if (_prescriptionFieldController.text.isEmpty) {
-      return;
-    }
-    setState(() {
-      _prescriptions.add(prescription);
-      _prescriptionFieldController.clear();
-      _prescriptionFieldFocusNode.requestFocus();
-    });
+  Future<void> _initializeDatabase() async {
+    _dbHelper = RxProDbHelper.instance;
+    _patients = await _dbHelper.getItems(tableName: 'patient');
   }
 
-  void _onSelectPrescription() {
-    String previousPrescription = _prescriptions[_selectedPrescriptionIndex];
-    _prescriptionFieldController.text = previousPrescription;
-    _prescriptionFieldFocusNode.requestFocus();
-  }
+  void _onSelectedPatient(int index) {
+    Map<String, dynamic> selectedPatient = _patients[index];
 
-  void _updatePrescription() {
-    String updatedPrescription = _prescriptionFieldController.value.text;
-    if (updatedPrescription.isNotEmpty) {
-      _prescriptions[_selectedPrescriptionIndex] = updatedPrescription;
-      _prescriptionFieldController.clear();
-      setState(() {
-        _selectedPrescriptionIndex = -1;
-        _prescriptionFieldFocusNode.requestFocus();
-      });
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text(
-          'No prescription entered. Retyping previous prescription...',
-        ),
-        duration: Duration(milliseconds: 800),
-      ));
-      setState(() {
-        _prescriptionFieldController.text =
-            _prescriptions[_selectedPrescriptionIndex];
-      });
-    }
-  }
-
-  bool _isPrescriptionValid() {
-    bool isPatientInfoComplete = (_patientsSex != null) &&
-        _nameFieldController.text.isNotEmpty &&
-        _ageFieldController.text.isNotEmpty;
-
-    return _prescriptions.isNotEmpty && isPatientInfoComplete;
-  }
-
-  void _clearPrescription() {
-    setState(() {
-      _prescriptions.clear();
-      _prescriptionFieldController.clear();
-      _selectedPrescriptionIndex = -1;
-      _nameFieldController.clear();
-      _ageFieldController.clear();
-      _patientsSex = null;
-    });
+    Navigator.pop(
+      context,
+      Patient(
+        firstName: selectedPatient['first_name'],
+        middleName: selectedPatient['middle_name'],
+        lastName: selectedPatient['last_name'],
+        sex: selectedPatient['sex'],
+        birthDate: DateTime.parse(selectedPatient['birthdate']),
+      ),
+    );
   }
 
   @override
   void initState() {
     super.initState();
-    _prescriptionFieldFocusNode.addListener(() {
-      if (_prescriptionFieldFocusNode.hasFocus) {
-        setState(() {
-          _isPrescribing = true;
-        });
-      } else {
-        setState(() {
-          _isPrescribing = false;
-        });
-      }
-    });
+    _initializeDatabase().then((value) => setState(() {}));
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
-        title: const Text(
-          'New Prescription',
-          style: TextStyle(color: Colors.white),
-        ),
-        actions: [
-          TextButton(
-            style: TextButton.styleFrom(
-              backgroundColor: PURPLE.withAlpha(70),
-              foregroundColor: LIGHT,
-              disabledForegroundColor: LIGHT.withAlpha(90),
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-            ),
-            onPressed: _clearPrescription,
-            child: const Text('Reset'),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: TextButton(
-              onPressed: (_isPrescriptionValid())
-                  ? () async {
-                      setState(() {
-                        _prescriptionFieldFocusNode.unfocus();
-                      });
-                      final isClosed = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => PrescriptionPreviewPage(
-                            prescriptions: _prescriptions,
-                            patientName: _nameFieldController.value.text,
-                            patientAge: _ageFieldController.value.text,
-                            patientSex: _patientsSex ?? 'N/A',
-                          ),
-                        ),
-                      );
-
-                      if (isClosed) {
-                        _clearPrescription();
-                      }
-                    }
-                  : null,
-              style: lightButtonStyle,
-              child: const Text('Print'),
-            ),
-          ),
-        ],
+    return AlertDialog(
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(8)),
       ),
-      body: Container(
-        color: Colors.white,
-        child: Column(
-          children: [
-            Visibility(
-              visible: (!_isPrescribing),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.only(right: 24, left: 24, bottom: 20),
-                color: Colors.deepPurple.shade50,
-                child: Column(
-                  children: [
-                    const Text(
-                      'Patient\'s Information',
-                      style: TextStyle(
-                        fontSize: 18,
-                        height: 3.5,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    Column(
-                      children: [
-                        TextField(
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: BLUE,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          textInputAction: TextInputAction.next,
-                          inputFormatters: [
-                            UpperCaseTextFormatter(),
-                          ],
-                          decoration: lightTextFieldStyle.copyWith(
-                            hintText: 'ex: JUAN C. DELA CRUZ JR.',
-                            label: const Text('NAME'),
-                          ),
-                          controller: _nameFieldController,
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: BLUE,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly
-                          ],
-                          keyboardType: TextInputType.number,
-                          decoration: lightTextFieldStyle.copyWith(
-                            label: const Text('AGE'),
-                          ),
-                          controller: _ageFieldController,
-                        ),
-                        const SizedBox(height: 16),
-                        InputDecorator(
-                          decoration: lightTextFieldStyle.copyWith(
-                            label: (_patientsSex != null)
-                                ? const Text('SEX ASSIGNED AT BIRTH')
-                                : null,
-                            contentPadding: const EdgeInsets.only(
-                              right: 12,
-                              left: 16,
-                              top: 3,
-                              bottom: 3,
-                            ),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton(
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: BLUE,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              hint: Text(
-                                'SEX ASSIGNED AT BIRTH',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey.shade800,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                              ),
-                              value: _patientsSex,
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'F',
-                                  child: Text('FEMALE'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'M',
-                                  child: Text('MALE'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'I',
-                                  child: Text('INTERSEX'),
-                                ),
-                              ],
-                              onChanged: (value) {
-                                setState(() {
-                                  _patientsSex = value;
-                                });
-                              },
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const Text(
-              'Drug Prescriptions',
-              style: TextStyle(
-                fontSize: 18,
-                height: 3.5,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const Divider(indent: 24, endIndent: 24, height: 1),
-            Expanded(
-              child: (_prescriptions.isNotEmpty)
-                  ? ListView.separated(
-                      itemCount: _prescriptions.length,
-                      itemBuilder: (context, index) {
-                        return Container(
-                          color: (_selectedPrescriptionIndex == index)
-                              ? LIGHT
-                              : null,
-                          child: ListTile(
-                            dense: true,
-                            title: Text(
-                              _prescriptions[index],
-                              style: const TextStyle(fontSize: 16),
-                            ),
-                            trailing: IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  _prescriptions.removeAt(index);
-                                });
-                              },
-                              icon: const Icon(Icons.delete),
-                              mouseCursor: SystemMouseCursors.click,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                            ),
-                            selected: (_selectedPrescriptionIndex == index),
-                            shape: const RoundedRectangleBorder(),
-                            mouseCursor: SystemMouseCursors.click,
-                            onTap: () {
-                              setState(() {
-                                if (_selectedPrescriptionIndex == index) {
-                                  _selectedPrescriptionIndex = -1;
-                                  _prescriptionFieldController.clear();
-                                } else {
-                                  _selectedPrescriptionIndex = index;
-                                  _onSelectPrescription();
-                                }
-                              });
-                            },
-                          ),
-                        );
-                      },
-                      separatorBuilder: (context, index) =>
-                          const Divider(height: 1),
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                    )
-                  : const Text(
-                      'No prescription in list.',
-                      style: TextStyle(
-                        color: LIGHT_GREY,
-                        height: 3,
-                      ),
-                    ),
-            ),
-            Container(
-              color: Colors.deepPurple.shade50,
-              padding: const EdgeInsets.all(12),
-              child: TextField(
-                controller: _prescriptionFieldController,
-                focusNode: _prescriptionFieldFocusNode,
-                textInputAction: TextInputAction.done,
-                keyboardType: TextInputType.text,
-                onSubmitted: (text) {
-                  if (_selectedPrescriptionIndex < 0) {
-                    _addPrescription(text);
-                  } else {
-                    _updatePrescription();
-                  }
-                },
-                onChanged: (text) => setState(() {}),
-                decoration: lightTextFieldStyle.copyWith(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 4,
-                  ),
-                  hintText: (_selectedPrescriptionIndex < 0)
-                      ? 'New prescription'
-                      : 'Updated prescription',
-                  suffix: (_selectedPrescriptionIndex < 0)
-                      ? TextButton(
-                          onPressed:
-                              (_prescriptionFieldController.value.text.isEmpty)
-                                  ? null
-                                  : () => _addPrescription(
-                                      _prescriptionFieldController.value.text),
-                          child: const Text('Add'),
-                        )
-                      : TextButton(
-                          onPressed: _updatePrescription,
-                          child: const Text('Edit'),
-                        ),
-                ),
-              ),
-            ),
-          ],
-        ),
+      title: const Text(
+        'Patients List',
+        textAlign: TextAlign.center,
+      ),
+      titlePadding: const EdgeInsets.symmetric(vertical: 12),
+      contentPadding: EdgeInsets.zero,
+      content: PatientsDataTable(
+        patients: _patients,
+        onSelected: _onSelectedPatient,
       ),
     );
   }
 }
 
-class _DesktopBody extends StatefulWidget {
-  const _DesktopBody({super.key});
-
-  @override
-  State<_DesktopBody> createState() => _DesktopBodyState();
+Widget _mobileBody(
+  BuildContext buildContext, {
+  required void Function() clearPrescription,
+  required bool Function() isPrescriptionValid,
+  required void Function() onPrint,
+  required void Function(int index) onDeletePrescription,
+  required void Function(int index) onSelectPrescription,
+  required void Function(String text) addPrescription,
+  required void Function(String text) onInputPrescription,
+  required void Function() updatePrescription,
+  required void Function() newPatientInfo,
+  required void Function() existingPatientInfo,
+  required TextEditingController prescriptionFieldController,
+  required FocusNode prescriptionFieldFocusNode,
+  required bool isPrescribing,
+  required List<String> prescriptions,
+  required int selectedPrescriptionIndex,
+  required String currentPrescription,
+  required bool isExistingPatient,
+  Patient? patient,
+}) {
+  return Scaffold(
+    appBar: AppBar(
+      backgroundColor: Colors.deepPurple,
+      title: const Text(
+        'New Prescription',
+        style: TextStyle(color: Colors.white),
+      ),
+      actions: [
+        TextButton(
+          style: TextButton.styleFrom(
+            backgroundColor: PURPLE.withAlpha(70),
+            foregroundColor: LIGHT,
+            disabledForegroundColor: LIGHT.withAlpha(90),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+          ),
+          onPressed: clearPrescription,
+          child: const Text('  Reset  '),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 10, right: 20),
+          child: TextButton(
+            onPressed: (isPrescriptionValid()) ? onPrint : null,
+            style: lightButtonStyle,
+            child: const Text('  Print  '),
+          ),
+        ),
+      ],
+    ),
+    body: Container(
+      color: Colors.white,
+      child: Column(
+        children: [
+          Visibility(
+            visible: (!isPrescribing),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.only(right: 24, left: 24, bottom: 24),
+              color: Colors.deepPurple.shade50,
+              child: Column(
+                children: (patient == null)
+                    ? [
+                        const Text(
+                          'Patient\'s Information',
+                          style: TextStyle(
+                            fontSize: 18,
+                            height: 3.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Wrap(
+                          spacing: 16,
+                          runSpacing: 8,
+                          children: [
+                            TextButton(
+                              onPressed: newPatientInfo,
+                              style: TextButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.only(right: 16, left: 12),
+                              ),
+                              child: const Text('      New patient     '),
+                            ),
+                            TextButton(
+                              onPressed: existingPatientInfo,
+                              style: TextButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.only(right: 16, left: 12),
+                              ),
+                              child: const Wrap(
+                                spacing: 6,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.search,
+                                    size: 20,
+                                  ),
+                                  Text('Search patient'),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ]
+                    : [
+                        const Text(
+                          'Patient\'s Information',
+                          style: TextStyle(
+                            fontSize: 18,
+                            height: 3.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Wrap(
+                          spacing: 36,
+                          runSpacing: 6,
+                          children: [
+                            Text.rich(
+                              TextSpan(
+                                text: 'Name: ',
+                                children: <TextSpan>[
+                                  TextSpan(
+                                    text:
+                                        '${patient.firstName} ${patient.middleName[0]}. ${patient.lastName}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text.rich(
+                              TextSpan(
+                                text: 'Age: ',
+                                children: <TextSpan>[
+                                  TextSpan(
+                                    text: getAge(patient.birthDate).toString(),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text.rich(
+                              TextSpan(
+                                text: 'Sex assigned at birth: ',
+                                children: <TextSpan>[
+                                  TextSpan(
+                                    text: sex[patient.sex],
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        Wrap(
+                          spacing: 16,
+                          runSpacing: 8,
+                          children: [
+                            TextButton(
+                              onPressed: newPatientInfo,
+                              style: TextButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.only(right: 16, left: 12),
+                              ),
+                              child: Text(
+                                (isExistingPatient)
+                                    ? '      New patient     '
+                                    : '   Update patient   ',
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: existingPatientInfo,
+                              style: TextButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.only(right: 16, left: 12),
+                              ),
+                              child: const Wrap(
+                                spacing: 6,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.search,
+                                    size: 20,
+                                  ),
+                                  Text('Search patient'),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+              ),
+            ),
+          ),
+          const Text(
+            'Drug Prescriptions',
+            style: TextStyle(
+              fontSize: 18,
+              height: 3.5,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const Divider(indent: 24, endIndent: 24, height: 1),
+          Expanded(
+            child: (prescriptions.isNotEmpty)
+                ? ListView.separated(
+                    itemCount: prescriptions.length,
+                    itemBuilder: (context, index) {
+                      return Container(
+                        color:
+                            (selectedPrescriptionIndex == index) ? LIGHT : null,
+                        child: ListTile(
+                          dense: true,
+                          title: Text(
+                            prescriptions[index],
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          trailing: IconButton(
+                            onPressed: () => onDeletePrescription(index),
+                            icon: const Icon(Icons.delete),
+                            mouseCursor: SystemMouseCursors.click,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                          ),
+                          selected: (selectedPrescriptionIndex == index),
+                          shape: const RoundedRectangleBorder(),
+                          mouseCursor: SystemMouseCursors.click,
+                          onTap: () => onSelectPrescription(index),
+                        ),
+                      );
+                    },
+                    separatorBuilder: (context, index) =>
+                        const Divider(height: 1),
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                  )
+                : const Text(
+                    'No prescription in list.',
+                    style: TextStyle(
+                      color: LIGHT_GREY,
+                      height: 3,
+                    ),
+                  ),
+          ),
+          Container(
+            color: Colors.deepPurple.shade50,
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              controller: prescriptionFieldController,
+              focusNode: prescriptionFieldFocusNode,
+              textInputAction: TextInputAction.done,
+              keyboardType: TextInputType.text,
+              onSubmitted: (text) {
+                if (selectedPrescriptionIndex < 0) {
+                  addPrescription(text);
+                } else {
+                  updatePrescription();
+                }
+              },
+              onChanged: onInputPrescription,
+              decoration: lightTextFieldStyle.copyWith(
+                contentPadding: const EdgeInsets.only(
+                  right: 16,
+                  left: 16,
+                  top: 12,
+                  bottom: 10,
+                ),
+                hintText: (selectedPrescriptionIndex < 0)
+                    ? 'New prescription'
+                    : 'Updated prescription',
+                suffix: (selectedPrescriptionIndex < 0)
+                    ? TextButton(
+                        onPressed: (currentPrescription.isEmpty)
+                            ? null
+                            : () => addPrescription(currentPrescription),
+                        child: const Text('Add'),
+                      )
+                    : TextButton(
+                        onPressed: updatePrescription,
+                        child: const Text('Edit'),
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
-class _DesktopBodyState extends State<_DesktopBody> {
+Widget _desktopBody(
+    BuildContext buildContext, {
+      required void Function() clearPrescription,
+      required bool Function() isPrescriptionValid,
+      required void Function() onPrint,
+      required void Function(int index) onDeletePrescription,
+      required void Function(int index) onSelectPrescription,
+      required void Function(String text) addPrescription,
+      required void Function(String text) onInputPrescription,
+      required void Function() updatePrescription,
+      required void Function() newPatientInfo,
+      required void Function() existingPatientInfo,
+      required TextEditingController prescriptionFieldController,
+      required FocusNode prescriptionFieldFocusNode,
+      required List<String> prescriptions,
+      required int selectedPrescriptionIndex,
+      required String currentPrescription,
+      required bool isExistingPatient,
+      Patient? patient,
+}) {
+  return Scaffold(
+    appBar: AppBar(
+      backgroundColor: Colors.deepPurple,
+      title: const Text(
+        'New Prescription',
+        style: TextStyle(color: Colors.white),
+      ),
+      actions: [
+        TextButton(
+          style: TextButton.styleFrom(
+            backgroundColor: PURPLE.withAlpha(70),
+            foregroundColor: LIGHT,
+            disabledForegroundColor: LIGHT.withAlpha(90),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+          ),
+          onPressed: clearPrescription,
+          child: const Text('  Reset  '),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 10, right: 20),
+          child: TextButton(
+            onPressed: (isPrescriptionValid()) ? onPrint : null,
+            style: lightButtonStyle,
+            child: const Text('  Print  '),
+          ),
+        ),
+      ],
+    ),
+    body: Container(
+      color: Colors.white,
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.only(right: 24, left: 24, bottom: 24),
+            color: Colors.deepPurple.shade50,
+            child: Column(
+              children: (patient == null)
+                  ? [
+                const Text(
+                  'Patient\'s Information',
+                  style: TextStyle(
+                    fontSize: 18,
+                    height: 3.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: newPatientInfo,
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        padding:
+                        const EdgeInsets.only(right: 16, left: 12),
+                      ),
+                      child: const Text('      New patient     '),
+                    ),
+                    TextButton(
+                      onPressed: existingPatientInfo,
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        padding:
+                        const EdgeInsets.only(right: 16, left: 12),
+                      ),
+                      child: const Wrap(
+                        spacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.search,
+                            size: 20,
+                          ),
+                          Text('Search patient'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ]
+                  : [
+                const Text(
+                  'Patient\'s Information',
+                  style: TextStyle(
+                    fontSize: 18,
+                    height: 3.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Wrap(
+                  spacing: 36,
+                  runSpacing: 6,
+                  children: [
+                    Text.rich(
+                      TextSpan(
+                        text: 'Name: ',
+                        children: <TextSpan>[
+                          TextSpan(
+                            text:
+                            '${patient.firstName} ${patient.middleName[0]}. ${patient.lastName}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text.rich(
+                      TextSpan(
+                        text: 'Age: ',
+                        children: <TextSpan>[
+                          TextSpan(
+                            text: getAge(patient.birthDate).toString(),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text.rich(
+                      TextSpan(
+                        text: 'Sex assigned at birth: ',
+                        children: <TextSpan>[
+                          TextSpan(
+                            text: sex[patient.sex],
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: newPatientInfo,
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        padding:
+                        const EdgeInsets.only(right: 16, left: 12),
+                      ),
+                      child: Text(
+                        (isExistingPatient)
+                            ? '      New patient     '
+                            : '   Update patient   ',
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: existingPatientInfo,
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        padding:
+                        const EdgeInsets.only(right: 16, left: 12),
+                      ),
+                      child: const Wrap(
+                        spacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.search,
+                            size: 20,
+                          ),
+                          Text('Search patient'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const Text(
+            'Drug Prescriptions',
+            style: TextStyle(
+              fontSize: 18,
+              height: 3.5,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const Divider(indent: 24, endIndent: 24, height: 1),
+          Expanded(
+            child: (prescriptions.isNotEmpty)
+                ? ListView.separated(
+              itemCount: prescriptions.length,
+              itemBuilder: (context, index) {
+                return Container(
+                  color:
+                  (selectedPrescriptionIndex == index) ? LIGHT : null,
+                  child: ListTile(
+                    dense: true,
+                    title: Text(
+                      prescriptions[index],
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    trailing: IconButton(
+                      onPressed: () => onDeletePrescription(index),
+                      icon: const Icon(Icons.delete),
+                      mouseCursor: SystemMouseCursors.click,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                    ),
+                    selected: (selectedPrescriptionIndex == index),
+                    shape: const RoundedRectangleBorder(),
+                    mouseCursor: SystemMouseCursors.click,
+                    onTap: () => onSelectPrescription(index),
+                  ),
+                );
+              },
+              separatorBuilder: (context, index) =>
+              const Divider(height: 1),
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+            )
+                : const Text(
+              'No prescription in list.',
+              style: TextStyle(
+                color: LIGHT_GREY,
+                height: 3,
+              ),
+            ),
+          ),
+          Container(
+            color: Colors.deepPurple.shade50,
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              controller: prescriptionFieldController,
+              focusNode: prescriptionFieldFocusNode,
+              textInputAction: TextInputAction.done,
+              keyboardType: TextInputType.text,
+              onSubmitted: (text) {
+                if (selectedPrescriptionIndex < 0) {
+                  addPrescription(text);
+                } else {
+                  updatePrescription();
+                }
+              },
+              onChanged: onInputPrescription,
+              decoration: lightTextFieldStyle.copyWith(
+                contentPadding: const EdgeInsets.only(
+                  right: 16,
+                  left: 16,
+                  top: 12,
+                  bottom: 10,
+                ),
+                hintText: (selectedPrescriptionIndex < 0)
+                    ? 'New prescription'
+                    : 'Updated prescription',
+                suffix: (selectedPrescriptionIndex < 0)
+                    ? TextButton(
+                  onPressed: (currentPrescription.isEmpty)
+                      ? null
+                      : () => addPrescription(currentPrescription),
+                  child: const Text('Add'),
+                )
+                    : TextButton(
+                  onPressed: updatePrescription,
+                  child: const Text('Edit'),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class PrescriptionPage extends StatefulWidget {
+  const PrescriptionPage({
+    super.key,
+    required this.doctor,
+    required this.clinic,
+    this.existingPatient,
+  });
+
+  final Patient? existingPatient;
+  final Doctor doctor;
+  final Clinic clinic;
+
+  @override
+  State<PrescriptionPage> createState() => _PrescriptionPageState();
+}
+
+class _PrescriptionPageState extends State<PrescriptionPage> {
   final TextEditingController _prescriptionFieldController =
       TextEditingController();
-  final TextEditingController _nameFieldController = TextEditingController();
-  final TextEditingController _ageFieldController = TextEditingController();
   final FocusNode _prescriptionFieldFocusNode = FocusNode();
   final List<String> _prescriptions = [];
 
   int _selectedPrescriptionIndex = -1;
-  String? _patientsSex;
+  bool _isPrescribing = false;
+  Patient? _patient;
+  String _currentPrescription = '';
+  bool _isExistingPatient = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _prescriptionFieldFocusNode.addListener(() {
+      setState(() {
+        _isPrescribing = _prescriptionFieldFocusNode.hasFocus;
+      });
+    });
+
+    if (widget.existingPatient != null) {
+      _patient = widget.existingPatient;
+      _isExistingPatient = true;
+    }
+  }
 
   void _addPrescription(String prescription) {
-    if (_prescriptionFieldController.text.isEmpty) {
-      return;
+    if (prescription.isNotEmpty) {
+      setState(() {
+        _prescriptions.add(prescription);
+        _prescriptionFieldController.clear();
+        _prescriptionFieldFocusNode.requestFocus();
+      });
     }
+  }
+
+  void _onInputPrescription(String text) {
     setState(() {
-      _prescriptions.add(prescription);
-      _prescriptionFieldController.clear();
-      _prescriptionFieldFocusNode.requestFocus();
+      _currentPrescription = text;
     });
   }
 
-  void _onSelectPrescription() {
-    String previousPrescription = _prescriptions[_selectedPrescriptionIndex];
-    _prescriptionFieldController.text = previousPrescription;
-    _prescriptionFieldFocusNode.requestFocus();
+  void _onSelectPrescription(int index) {
+    setState(() {
+      if (_selectedPrescriptionIndex == index) {
+        _selectedPrescriptionIndex = -1;
+        _prescriptionFieldController.clear();
+      } else {
+        _selectedPrescriptionIndex = index;
+        String previousPrescription =
+            _prescriptions[_selectedPrescriptionIndex];
+        _prescriptionFieldController.text = previousPrescription;
+        _currentPrescription = previousPrescription;
+        _prescriptionFieldFocusNode.requestFocus();
+      }
+    });
   }
 
   void _updatePrescription() {
-    String updatedPrescription = _prescriptionFieldController.value.text;
+    String updatedPrescription = _currentPrescription;
     if (updatedPrescription.isNotEmpty) {
       _prescriptions[_selectedPrescriptionIndex] = updatedPrescription;
       _prescriptionFieldController.clear();
@@ -433,11 +764,11 @@ class _DesktopBodyState extends State<_DesktopBody> {
   }
 
   bool _isPrescriptionValid() {
-    bool isPatientInfoComplete = (_patientsSex != null) &&
-        _nameFieldController.text.isNotEmpty &&
-        _ageFieldController.text.isNotEmpty;
+    // bool isPatientInfoComplete = (_patientsSex != null) &&
+    //     _nameFieldController.text.isNotEmpty &&
+    //     _ageFieldController.text.isNotEmpty;
 
-    return _prescriptions.isNotEmpty && isPatientInfoComplete;
+    return _prescriptions.isNotEmpty && _patient != null;
   }
 
   void _clearPrescription() {
@@ -445,295 +776,121 @@ class _DesktopBodyState extends State<_DesktopBody> {
       _prescriptions.clear();
       _prescriptionFieldController.clear();
       _selectedPrescriptionIndex = -1;
-      _nameFieldController.clear();
-      _ageFieldController.clear();
-      _patientsSex = null;
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
-        title: const Text(
-          'New Prescription',
-          style: TextStyle(color: Colors.white),
-        ),
-        actions: [
-          TextButton(
-            style: TextButton.styleFrom(
-              backgroundColor: PURPLE.withAlpha(70),
-              foregroundColor: LIGHT,
-              disabledForegroundColor: LIGHT.withAlpha(90),
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-            ),
-            onPressed: _clearPrescription,
-            child: const Text('Reset'),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: TextButton(
-              onPressed: (_isPrescriptionValid())
-                  ? () async {
-                      setState(() {
-                        _prescriptionFieldFocusNode.unfocus();
-                      });
-                      final isClosed = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => PrescriptionPreviewPage(
-                            prescriptions: _prescriptions,
-                            patientName: _nameFieldController.value.text,
-                            patientAge: _ageFieldController.value.text,
-                            patientSex: _patientsSex ?? 'N/A',
-                          ),
-                        ),
-                      );
+  void _onPrint() {
+    setState(() {
+      _prescriptionFieldFocusNode.unfocus();
+    });
 
-                      if (isClosed != null && isClosed) {
-                        _clearPrescription();
-                      }
-                    }
-                  : null,
-              style: lightButtonStyle,
-              child: const Text('Print'),
-            ),
-          ),
-        ],
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PrescriptionPreviewPage(
+          doctor: widget.doctor,
+          clinic: widget.clinic,
+          prescriptions: _prescriptions,
+          patientName:
+              '${_patient!.firstName} ${_patient!.middleName[0]}. ${_patient!.lastName}',
+          patientAge: getAge(_patient!.birthDate).toString(),
+          patientSex: sex[_patient!.sex] ?? 'N/A',
+        ),
       ),
-      body: Container(
-        color: Colors.white,
-        child: Column(
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.only(right: 36, left: 36, bottom: 20),
-              color: Colors.deepPurple.shade50,
-              child: Column(
-                children: [
-                  const Text(
-                    'Patient\'s Information',
-                    style: TextStyle(
-                      fontSize: 18,
-                      height: 3.5,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  Wrap(
-                    spacing: 16,
-                    runSpacing: 18,
-                    children: [
-                      TextField(
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: BLUE,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        textInputAction: TextInputAction.next,
-                        inputFormatters: [
-                          UpperCaseTextFormatter(),
-                        ],
-                        decoration: lightTextFieldStyle.copyWith(
-                          hintText: 'ex: JUAN C. DELA CRUZ JR.',
-                          label: const Text('NAME'),
-                        ),
-                        controller: _nameFieldController,
-                      ),
-                      SizedBox(
-                        width: 200,
-                        child: TextField(
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: BLUE,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly
-                          ],
-                          keyboardType: TextInputType.number,
-                          decoration: lightTextFieldStyle.copyWith(
-                            label: const Text('AGE'),
-                          ),
-                          controller: _ageFieldController,
-                        ),
-                      ),
-                      SizedBox(
-                        width: 300,
-                        child: InputDecorator(
-                          decoration: lightTextFieldStyle.copyWith(
-                            label: (_patientsSex != null)
-                                ? const Text('SEX ASSIGNED AT BIRTH')
-                                : null,
-                            contentPadding: const EdgeInsets.only(
-                              right: 12,
-                              left: 16,
-                              top: 3,
-                              bottom: 3,
-                            ),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton(
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: BLUE,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              hint: Text(
-                                'SEX ASSIGNED AT BIRTH',
-                                style: TextStyle(color: Colors.grey.shade800),
-                              ),
-                              value: _patientsSex,
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'FEMALE',
-                                  child: Text('FEMALE'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'MALE',
-                                  child: Text('MALE'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'INTERSEX',
-                                  child: Text('INTERSEX'),
-                                ),
-                              ],
-                              onChanged: (value) {
-                                setState(() {
-                                  _patientsSex = value;
-                                });
-                              },
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  )
-                ],
-              ),
-            ),
-            const Text(
-              'Drug Prescriptions',
-              style: TextStyle(
-                fontSize: 18,
-                height: 3.5,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const Divider(indent: 32, endIndent: 32, height: 1),
-            Expanded(
-              child: (_prescriptions.isNotEmpty)
-                  ? ListView.separated(
-                      itemCount: _prescriptions.length,
-                      itemBuilder: (context, index) {
-                        return Container(
-                          color: (_selectedPrescriptionIndex == index)
-                              ? LIGHT
-                              : null,
-                          child: ListTile(
-                            dense: true,
-                            title: Text(
-                              _prescriptions[index],
-                              style: const TextStyle(fontSize: 16),
-                            ),
-                            trailing: IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  _prescriptions.removeAt(index);
-                                });
-                              },
-                              icon: const Icon(Icons.delete),
-                              mouseCursor: SystemMouseCursors.click,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                            ),
-                            selected: (_selectedPrescriptionIndex == index),
-                            shape: const RoundedRectangleBorder(),
-                            mouseCursor: SystemMouseCursors.click,
-                            onTap: () {
-                              setState(() {
-                                if (_selectedPrescriptionIndex == index) {
-                                  _selectedPrescriptionIndex = -1;
-                                  _prescriptionFieldController.clear();
-                                } else {
-                                  _selectedPrescriptionIndex = index;
-                                  _onSelectPrescription();
-                                }
-                              });
-                            },
-                          ),
-                        );
-                      },
-                      separatorBuilder: (context, index) =>
-                          const Divider(height: 1),
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.symmetric(horizontal: 32),
-                    )
-                  : const Text(
-                      'No prescription in list.',
-                      style: TextStyle(
-                        color: LIGHT_GREY,
-                        height: 3,
-                      ),
-                    ),
-            ),
-            Container(
-              color: Colors.deepPurple.shade50,
-              padding: const EdgeInsets.all(12),
-              child: TextField(
-                controller: _prescriptionFieldController,
-                focusNode: _prescriptionFieldFocusNode,
-                textInputAction: TextInputAction.done,
-                keyboardType: TextInputType.text,
-                onSubmitted: (text) {
-                  if (_selectedPrescriptionIndex < 0) {
-                    _addPrescription(text);
-                  } else {
-                    _updatePrescription();
-                  }
-                },
-                onChanged: (text) => setState(() {}),
-                decoration: lightTextFieldStyle.copyWith(
-                  hintText: (_selectedPrescriptionIndex < 0)
-                      ? 'New prescription'
-                      : 'Updated prescription',
-                  suffix: (_selectedPrescriptionIndex < 0)
-                      ? TextButton(
-                          onPressed:
-                              (_prescriptionFieldController.value.text.isEmpty)
-                                  ? null
-                                  : () => _addPrescription(
-                                      _prescriptionFieldController.value.text),
-                          child: const Text('Add'),
-                        )
-                      : TextButton(
-                          onPressed: _updatePrescription,
-                          child: const Text('Edit'),
-                        ),
-                ),
-              ),
-            ),
-          ],
+    ).then((isClosed) {
+      if (isClosed.runtimeType == bool && isClosed) {
+        Navigator.popUntil(context, (route) => route.isFirst);
+      }
+    });
+  }
+
+  void _onDeletePrescription(int index) {
+    setState(() {
+      _prescriptions.removeAt(index);
+    });
+  }
+
+  void _newPatientInfo() async {
+    var newPatient = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PatientPage(
+          existingPatient: (_isExistingPatient) ? null : _patient,
         ),
       ),
     );
-  }
-}
 
-class PrescriptionPage extends StatelessWidget {
-  const PrescriptionPage({super.key});
+    if (newPatient != null) {
+      setState(() {
+        _patient = newPatient;
+        _isExistingPatient = false;
+      });
+    }
+  }
+
+  void _existingPatientInfo() async {
+    Patient? existingPatient = await showDialog(
+      context: context,
+      builder: (context) => const SearchPatientDialog(),
+    );
+
+    if (existingPatient != null) {
+      setState(() {
+        _patient = existingPatient;
+        _isExistingPatient = true;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return const SafeArea(
+    return SafeArea(
       child: ResponsiveLayout(layouts: [
         Layout(
-          body: _MobileBody(),
-          breakpoint: 600,
+          body: _mobileBody(
+            context,
+            currentPrescription: _currentPrescription,
+            clearPrescription: _clearPrescription,
+            isPrescriptionValid: _isPrescriptionValid,
+            onPrint: _onPrint,
+            onDeletePrescription: _onDeletePrescription,
+            onSelectPrescription: _onSelectPrescription,
+            addPrescription: _addPrescription,
+            updatePrescription: _updatePrescription,
+            onInputPrescription: _onInputPrescription,
+            newPatientInfo: _newPatientInfo,
+            existingPatientInfo: _existingPatientInfo,
+            prescriptionFieldController: _prescriptionFieldController,
+            prescriptionFieldFocusNode: _prescriptionFieldFocusNode,
+            patient: _patient,
+            isExistingPatient: _isExistingPatient,
+            isPrescribing: _isPrescribing,
+            prescriptions: _prescriptions,
+            selectedPrescriptionIndex: _selectedPrescriptionIndex,
+          ),
+          breakpoint: 760,
         ),
         Layout(
-          body: _DesktopBody(),
+          body: _desktopBody(
+            context,
+            currentPrescription: _currentPrescription,
+            clearPrescription: _clearPrescription,
+            isPrescriptionValid: _isPrescriptionValid,
+            onPrint: _onPrint,
+            onDeletePrescription: _onDeletePrescription,
+            onSelectPrescription: _onSelectPrescription,
+            addPrescription: _addPrescription,
+            updatePrescription: _updatePrescription,
+            onInputPrescription: _onInputPrescription,
+            newPatientInfo: _newPatientInfo,
+            existingPatientInfo: _existingPatientInfo,
+            prescriptionFieldController: _prescriptionFieldController,
+            prescriptionFieldFocusNode: _prescriptionFieldFocusNode,
+            patient: _patient,
+            isExistingPatient: _isExistingPatient,
+            prescriptions: _prescriptions,
+            selectedPrescriptionIndex: _selectedPrescriptionIndex,
+          ),
           breakpoint: double.infinity,
         ),
       ]),
