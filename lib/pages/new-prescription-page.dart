@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:rxpro_app/pages/prescription-preview-page.dart';
-import 'package:rxpro_app/pages/patient-info-page.dart';
+import 'package:rxpro_app/pages/patient-profile-page.dart';
 import 'package:rxpro_app/responsive-layout.dart';
 import 'package:rxpro_app/style.dart';
 import 'package:rxpro_app/utils.dart';
@@ -9,8 +9,6 @@ import 'package:rxpro_app/database.dart';
 import 'package:rxpro_app/doctor.dart';
 import 'package:rxpro_app/clinic.dart';
 import 'package:rxpro_app/patient.dart';
-
-const Map<int, String> sex = {1: 'MALE', 2: 'FEMALE', 3: 'INTERSEX'};
 
 class SearchPatientDialog extends StatefulWidget {
   const SearchPatientDialog({super.key});
@@ -34,11 +32,13 @@ class _SearchPatientDialogState extends State<SearchPatientDialog> {
     Navigator.pop(
       context,
       Patient(
+        selectedPatient['id'],
         firstName: selectedPatient['first_name'],
         middleName: selectedPatient['middle_name'],
         lastName: selectedPatient['last_name'],
         sex: selectedPatient['sex'],
         birthDate: DateTime.parse(selectedPatient['birthdate']),
+        address: selectedPatient['addr'],
       ),
     );
   }
@@ -193,7 +193,7 @@ Widget _mobileBody(
                                 children: <TextSpan>[
                                   TextSpan(
                                     text:
-                                        '${patient.firstName} ${patient.middleName[0]}. ${patient.lastName}',
+                                        '${patient.firstName}${patient.middleName == null ? '' : '${patient.middleName![0]}.'} ${patient.lastName}',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -490,7 +490,7 @@ Widget _desktopBody(
                         children: <TextSpan>[
                           TextSpan(
                             text:
-                            '${patient.firstName} ${patient.middleName[0]}. ${patient.lastName}',
+                            '${patient.firstName}${patient.middleName == null ? '' : '${patient.middleName![0]}.'} ${patient.lastName}',
                             style: const TextStyle(
                               fontWeight: FontWeight.w600,
                             ),
@@ -764,10 +764,6 @@ class _PrescriptionPageState extends State<PrescriptionPage> {
   }
 
   bool _isPrescriptionValid() {
-    // bool isPatientInfoComplete = (_patientsSex != null) &&
-    //     _nameFieldController.text.isNotEmpty &&
-    //     _ageFieldController.text.isNotEmpty;
-
     return _prescriptions.isNotEmpty && _patient != null;
   }
 
@@ -792,7 +788,7 @@ class _PrescriptionPageState extends State<PrescriptionPage> {
           clinic: widget.clinic,
           prescriptions: _prescriptions,
           patientName:
-              '${_patient!.firstName} ${_patient!.middleName[0]}. ${_patient!.lastName}',
+          '${_patient!.firstName}${_patient!.middleName == null ? '' : ' ${_patient!.middleName![0]}.'} ${_patient!.lastName}',
           patientAge: getAge(_patient!.birthDate).toString(),
           patientSex: sex[_patient!.sex] ?? 'N/A',
         ),
@@ -814,13 +810,18 @@ class _PrescriptionPageState extends State<PrescriptionPage> {
     var newPatient = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => PatientPage(
+        builder: (context) => PatientProfilePage(
           existingPatient: (_isExistingPatient) ? null : _patient,
         ),
       ),
     );
 
-    if (newPatient != null) {
+    if (newPatient.runtimeType == bool && !newPatient) {
+      setState(() {
+        _patient = null;
+        _isExistingPatient = false;
+      });
+    } else if (newPatient.runtimeType == Patient) {
       setState(() {
         _patient = newPatient;
         _isExistingPatient = false;
