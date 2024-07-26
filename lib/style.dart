@@ -22,8 +22,9 @@ final InputDecoration lightTextFieldStyle = InputDecoration(
   counterText: "",
   filled: true,
   fillColor: Colors.white,
-  border: roundedBorder(LIGHT),
-  enabledBorder: roundedBorder(LIGHT),
+  hoverColor: null,
+  border: roundedBorder(Colors.grey),
+  enabledBorder: roundedBorder(Colors.grey),
   focusedBorder: roundedBorder(PURPLE),
   contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
   isCollapsed: true,
@@ -37,7 +38,7 @@ ButtonStyle lightButtonStyle = TextButton.styleFrom(
   padding: const EdgeInsets.symmetric(horizontal: 8),
 );
 
-const Decoration lightContainerDecoration = BoxDecoration(
+const BoxDecoration lightContainerDecoration = BoxDecoration(
   boxShadow: [
     BoxShadow(
       color: Colors.black26,
@@ -52,6 +53,7 @@ const Decoration lightContainerDecoration = BoxDecoration(
 ButtonStyle primaryButtonStyle = TextButton.styleFrom(
   backgroundColor: INDIGO,
   shadowColor: Colors.grey,
+  iconColor: LIGHT,
   elevation: 3,
   side: const BorderSide(color: DARK, width: 1.5),
   padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -67,3 +69,45 @@ class UpperCaseTextFormatter extends TextInputFormatter {
   }
 }
 
+class LabelValueEntry extends StatelessWidget {
+  const LabelValueEntry(this.label, this.value,
+      {super.key, this.fillSpace = true});
+  final String label;
+  final String value;
+  final bool fillSpace;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: fillSpace ? double.infinity : null,
+      decoration: lightContainerDecoration,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              height: double.infinity,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: LIGHT,
+                borderRadius: BorderRadius.all(Radius.circular(8)),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              child: Text(label),
+            ),
+            Expanded(
+              child: Padding(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Text(
+                  value,
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
