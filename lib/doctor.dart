@@ -5,20 +5,24 @@ import 'dart:async';
 import 'package:rxpro_app/style.dart';
 
 class Doctor {
+  final String licenseID;
   final String firstName;
   final String lastName;
-  final String middleName;
+  final String? middleName;
   final String title;
   final String? specialty;
   final String? contact;
+  final String? email;
 
-  const Doctor({
+  const Doctor(
+    this.licenseID, {
     required this.firstName,
-    required this.middleName,
+    this.middleName,
     required this.lastName,
     required this.title,
     this.specialty,
     this.contact,
+    this.email,
   });
 }
 
@@ -31,39 +35,44 @@ class DoctorInfoDialog extends StatefulWidget {
 }
 
 class _DoctorInfoDialogState extends State<DoctorInfoDialog> {
-  final TextEditingController _firstNameFieldController =
-  TextEditingController();
-  final TextEditingController _lastNameFieldController =
-  TextEditingController();
-  final TextEditingController _middleNameFieldController =
-  TextEditingController();
-  final TextEditingController _titleFieldController = TextEditingController();
-  final TextEditingController _contactFieldController = TextEditingController();
-  final TextEditingController _specialtyFieldController =
-  TextEditingController();
+  Timer? _errorTimer;
 
-  bool? _hasFirstName;
-  bool? _hasMiddleName;
-  bool? _hasLastName;
+  String _licenseID = '';
+  String _firstName = '';
+  String _middleName = '';
+  String _lastName = '';
+  String _title = '';
+  String _specialty = '';
+  String _contact = '';
+  String _email = '';
+  bool _showError = false;
 
   @override
   void initState() {
     super.initState();
     if (widget.existingDoctor != null) {
-      _firstNameFieldController.text = widget.existingDoctor!.firstName;
-      _lastNameFieldController.text = widget.existingDoctor!.lastName;
-      _middleNameFieldController.text = widget.existingDoctor!.middleName;
+      _licenseID = widget.existingDoctor!.licenseID.toString();
+      _firstName = widget.existingDoctor!.firstName;
+      _lastName = widget.existingDoctor!.lastName;
+      _middleName = widget.existingDoctor?.middleName ?? '';
 
-      _titleFieldController.text = widget.existingDoctor!.title;
-      _specialtyFieldController.text = widget.existingDoctor?.specialty ?? '';
-      _contactFieldController.text = widget.existingDoctor?.contact ?? '';
+      _title = widget.existingDoctor!.title;
+      _specialty = widget.existingDoctor!.specialty ?? '';
+      _contact = widget.existingDoctor!.contact ?? '';
+      _email = widget.existingDoctor!.email ?? '';
     }
+  }
+
+  @override
+  void dispose() {
+    _errorTimer?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+      insetPadding: const EdgeInsets.all(20),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(8)),
       ),
@@ -76,7 +85,30 @@ class _DoctorInfoDialogState extends State<DoctorInfoDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
+            TextFormField(
+              initialValue: _licenseID,
+              autofocus: true,
+              style: const TextStyle(
+                fontSize: 14,
+                color: BLUE,
+                fontWeight: FontWeight.w500,
+              ),
+              textInputAction: TextInputAction.next,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              keyboardType: TextInputType.number,
+              decoration: lightTextFieldStyle.copyWith(
+                labelText: (_licenseID.isEmpty) ? null : 'License no.',
+                hintText: 'License no.',
+                errorText:
+                    _showError && _licenseID.isEmpty ? 'Required field' : null,
+              ),
+              onChanged: (value) => setState(() {
+                _licenseID = value;
+              }),
+            ),
+            const SizedBox(height: 10),
+            TextFormField(
+              initialValue: _firstName,
               style: const TextStyle(
                 fontSize: 14,
                 color: BLUE,
@@ -86,17 +118,15 @@ class _DoctorInfoDialogState extends State<DoctorInfoDialog> {
               inputFormatters: [UpperCaseTextFormatter()],
               decoration: lightTextFieldStyle.copyWith(
                 hintText: 'ex: JUAN',
-                label: const Text('FIRST NAME'),
-                error: _hasFirstName == null
-                    ? null
-                    : !_hasFirstName!
-                    ? const Text('Required field')
-                    : null,
+                labelText: 'FIRST NAME',
+                errorText:
+                    _showError && _firstName.isEmpty ? 'Required field' : null,
               ),
-              controller: _firstNameFieldController,
+              onChanged: (value) => _firstName = value,
             ),
             const SizedBox(height: 10),
-            TextField(
+            TextFormField(
+              initialValue: _middleName,
               style: const TextStyle(
                 fontSize: 14,
                 color: BLUE,
@@ -106,17 +136,13 @@ class _DoctorInfoDialogState extends State<DoctorInfoDialog> {
               inputFormatters: [UpperCaseTextFormatter()],
               decoration: lightTextFieldStyle.copyWith(
                 hintText: 'ex: CRISOSTOMO',
-                label: const Text('MIDDLE NAME'),
-                error: _hasMiddleName == null
-                    ? null
-                    : !_hasMiddleName!
-                    ? const Text('Required field')
-                    : null,
+                labelText: 'MIDDLE NAME',
               ),
-              controller: _middleNameFieldController,
+              onChanged: (value) => _middleName = value,
             ),
             const SizedBox(height: 10),
-            TextField(
+            TextFormField(
+              initialValue: _lastName,
               style: const TextStyle(
                 fontSize: 14,
                 color: BLUE,
@@ -126,17 +152,15 @@ class _DoctorInfoDialogState extends State<DoctorInfoDialog> {
               inputFormatters: [UpperCaseTextFormatter()],
               decoration: lightTextFieldStyle.copyWith(
                 hintText: 'ex: DELA CRUZ',
-                label: const Text('LAST NAME'),
-                error: _hasLastName == null
-                    ? null
-                    : !_hasLastName!
-                    ? const Text('Required field')
-                    : null,
+                labelText: 'LAST NAME',
+                errorText:
+                    _showError && _lastName.isEmpty ? 'Required field' : null,
               ),
-              controller: _lastNameFieldController,
+              onChanged: (value) => _lastName = value,
             ),
             const SizedBox(height: 10),
-            TextField(
+            TextFormField(
+              initialValue: _title,
               style: const TextStyle(
                 fontSize: 14,
                 color: BLUE,
@@ -146,12 +170,13 @@ class _DoctorInfoDialogState extends State<DoctorInfoDialog> {
               inputFormatters: [UpperCaseTextFormatter()],
               decoration: lightTextFieldStyle.copyWith(
                 hintText: 'ex: OB/GYN MD',
-                label: const Text('TITLE'),
+                labelText: 'TITLE',
               ),
-              controller: _titleFieldController,
+              onChanged: (value) => _title = value,
             ),
             const SizedBox(height: 10),
-            TextField(
+            TextFormField(
+              initialValue: _specialty,
               style: const TextStyle(
                 fontSize: 14,
                 color: BLUE,
@@ -160,66 +185,74 @@ class _DoctorInfoDialogState extends State<DoctorInfoDialog> {
               textInputAction: TextInputAction.next,
               decoration: lightTextFieldStyle.copyWith(
                 hintText: 'ex: Nephrology',
-                label: const Text('Specialty'),
+                labelText: 'Specialty',
               ),
-              controller: _specialtyFieldController,
+              onChanged: (value) => _firstName = value,
             ),
             const SizedBox(height: 10),
-            TextField(
+            TextFormField(
+              initialValue: _contact,
               style: const TextStyle(
                 fontSize: 14,
                 color: BLUE,
                 fontWeight: FontWeight.w500,
               ),
               textInputAction: TextInputAction.next,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              keyboardType: TextInputType.phone,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9+]')),
+              ],
               decoration: lightTextFieldStyle.copyWith(
                 hintText: 'Telephone / Mobile ',
                 label: const Text('Contact no.'),
               ),
-              controller: _contactFieldController,
+              onChanged: (value) => _contact = value,
+            ),
+            const SizedBox(height: 10),
+            TextFormField(
+              initialValue: _email,
+              style: const TextStyle(
+                fontSize: 14,
+                color: BLUE,
+                fontWeight: FontWeight.w500,
+              ),
+              textInputAction: TextInputAction.next,
+              keyboardType: TextInputType.emailAddress,
+              decoration: lightTextFieldStyle.copyWith(
+                hintText: 'example@email.com',
+                labelText: 'E-mail Address',
+              ),
+              onChanged: (value) => _email = value,
             ),
             const SizedBox(height: 36),
             Wrap(
               spacing: 18,
+              runSpacing: 12,
               children: [
                 TextButton(
                   onPressed: () {
-                    String firstName = _firstNameFieldController.value.text;
-                    String middleName = _middleNameFieldController.value.text;
-                    String lastName = _lastNameFieldController.value.text;
-
                     setState(() {
-                      _hasFirstName = firstName.isNotEmpty;
-                      _hasMiddleName = middleName.isNotEmpty;
-                      _hasLastName = lastName.isNotEmpty;
+                      _showError = _licenseID.isEmpty ||
+                          _firstName.isEmpty ||
+                          _lastName.isEmpty;
                     });
 
-                    Timer errorTimer =
-                    Timer(const Duration(milliseconds: 900), () {
-                      print('remove error');
-                      setState(() {
-                        _hasFirstName = null;
-                        _hasMiddleName = null;
-                        _hasLastName = null;
+                    if (_showError) {
+                      _errorTimer =
+                          Timer(const Duration(milliseconds: 900), () {
+                        setState(() => _showError = false);
                       });
-                    });
-
-                    if (_hasFirstName! && _hasMiddleName! && _hasLastName!) {
-                      errorTimer.cancel();
-                      String title = _titleFieldController.value.text;
-                      String specialty = _specialtyFieldController.value.text;
-                      String contact = _contactFieldController.value.text;
-
+                    } else {
                       Navigator.pop(
                         context,
                         Doctor(
-                          firstName: firstName,
-                          middleName: middleName,
-                          lastName: lastName,
-                          title: title.isEmpty ? 'MD' : title,
-                          specialty: specialty.isEmpty ? null : specialty,
-                          contact: contact.isEmpty ? null : contact,
+                          _licenseID,
+                          firstName: _firstName,
+                          middleName: _middleName.isEmpty ? null : _middleName,
+                          lastName: _lastName,
+                          title: _title.isEmpty ? 'MD' : _title,
+                          contact: _contact.isEmpty ? null : _contact,
+                          email: _email.isEmpty ? null : _email,
                         ),
                       );
                     }
@@ -247,10 +280,7 @@ class _DoctorInfoDialogState extends State<DoctorInfoDialog> {
                     side: const BorderSide(color: LIGHT, width: 1.5),
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                   ),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(color: DANGER, fontSize: 16),
-                  ),
+                  child: const Text(' Cancel '),
                 ),
               ],
             ),
