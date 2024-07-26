@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 
-import 'package:rxpro_app/prescription-form.dart';
+import 'package:rxpro_app/forms/prescription-form.dart';
 import 'package:rxpro_app/doctor.dart';
 import 'package:rxpro_app/clinic.dart';
 import 'package:rxpro_app/style.dart';
@@ -33,6 +34,7 @@ class PrescriptionPreviewPage extends StatefulWidget {
 class _PrescriptionPreviewPageState extends State<PrescriptionPreviewPage> {
   late final PrescriptionForm _prescriptionForm;
   bool? _savePrescription;
+  final DateTime _datePrescribed = DateTime.now();
 
   @override
   void initState() {
@@ -44,11 +46,12 @@ class _PrescriptionPreviewPageState extends State<PrescriptionPreviewPage> {
       clinicName: clinic.name,
       clinicAddress: clinic.address,
       doctorName:
-          '${doctor.firstName} ${doctor.middleName[0]}. ${doctor.lastName}, ${doctor.title}',
+          '${doctor.firstName}${doctor.middleName != null ? ' ${doctor.middleName![0]}.' : ''} ${doctor.lastName}, ${doctor.title}',
       prescriptions: widget.prescriptions,
       patientName: widget.patientName,
       patientAge: widget.patientAge,
       patientSex: widget.patientSex,
+      datePrescribed: _datePrescribed,
     );
   }
 
@@ -70,34 +73,9 @@ class _PrescriptionPreviewPageState extends State<PrescriptionPreviewPage> {
           ),
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Closing will clear this prescription form and create a new blank form.',
-                textAlign: TextAlign.start,
-              ),
-              StatefulBuilder(
-                builder: (context, setState) {
-                  return CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Save patient\'s info',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                    value: _savePrescription,
-                    onChanged: (bool? newValue) {
-                      setState(() {
-                        _savePrescription = newValue;
-                      });
-                    },
-                    controlAffinity: ListTileControlAffinity.leading,
-                  );
-                },
-              )
-            ],
+          content: const Text(
+            'Closing will clear this prescription form and you will not be able to view or download the file.',
+            textAlign: TextAlign.start,
           ),
           actions: [
             TextButton(
@@ -139,13 +117,13 @@ class _PrescriptionPreviewPageState extends State<PrescriptionPreviewPage> {
               child: TextButton(
                 style: lightButtonStyle,
                 onPressed: _onClosePrescription,
-                child: const Text('Close'),
+                child: const Text('   Close   '),
               ),
             ),
           ],
         ),
         body: PdfPreview(
-          pdfFileName: 'prescription',
+          pdfFileName: '${widget.patientName}_${DateFormat('M-d-y').format(_datePrescribed)}',
           initialPageFormat: PdfPageFormat.a5,
           previewPageMargin: const EdgeInsets.all(12),
           enableScrollToPage: true,

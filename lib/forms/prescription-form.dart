@@ -14,6 +14,7 @@ class PrescriptionForm {
   final String patientName;
   final String patientAge;
   final String patientSex;
+  final DateTime datePrescribed;
 
   late final int totalPages;
 
@@ -25,6 +26,7 @@ class PrescriptionForm {
     required this.patientName,
     required this.patientAge,
     required this.patientSex,
+    required this.datePrescribed,
   }) {
     _generate();
     totalPages = 1;
@@ -157,9 +159,9 @@ class PrescriptionForm {
                 width: double.infinity,
                 alignment: Alignment.centerRight,
                 child: Text(
-                  'Prescribed on ${DateFormat.yMMMMd().format(DateTime.now())}',
+                  'Prescribed on ${DateFormat.yMMMMd().format(datePrescribed)}',
                   textAlign: TextAlign.right,
-                  style: TextStyle(fontSize: 11),
+                  style: const TextStyle(fontSize: 11),
                 ),
               ),
             ],
