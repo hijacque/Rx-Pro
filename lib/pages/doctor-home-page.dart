@@ -1,33 +1,131 @@
-import 'package:flutter/cupertino.dart';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
+import 'package:rxpro_app/carousel.dart';
+import 'package:rxpro_app/pages/patient-page.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
 import 'package:rxpro_app/pages/new-prescription-page.dart';
 import 'package:rxpro_app/style.dart';
-import 'package:rxpro_app/pages/patient-info-page.dart';
+import 'package:rxpro_app/pages/patient-profile-page.dart';
 import 'package:rxpro_app/responsive-layout.dart';
 import 'package:rxpro_app/database.dart';
 import 'package:rxpro_app/patient.dart';
 import 'package:rxpro_app/doctor.dart';
 import 'package:rxpro_app/clinic.dart';
 
+class FloatingActionSpeedDial extends StatefulWidget {
+  const FloatingActionSpeedDial({
+    super.key,
+    required this.mainIcon,
+    required this.subActions,
+  });
+
+  final IconData mainIcon;
+  final Map<IconData, Function()> subActions;
+
+  @override
+  State<FloatingActionSpeedDial> createState() =>
+      _FloatingActionSpeedDialState();
+}
+
+class _FloatingActionSpeedDialState extends State<FloatingActionSpeedDial>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _viewSubActionsController;
+  late final List<IconData> _icons;
+  late final List<Function()> _subActionFunctions;
+
+  @override
+  void initState() {
+    super.initState();
+    _icons = widget.subActions.keys.toList();
+    _subActionFunctions = widget.subActions.values.toList();
+
+    _viewSubActionsController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ...List.generate(
+          _icons.length,
+          (index) => Container(
+            height: 70.0,
+            width: 56.0,
+            alignment: FractionalOffset.topCenter,
+            child: ScaleTransition(
+              scale: CurvedAnimation(
+                parent: _viewSubActionsController,
+                curve: Interval(
+                  0.0,
+                  1.0 - index / _icons.length / 2.0,
+                  curve: Curves.easeOut,
+                ),
+              ),
+              child: FloatingActionButton(
+                heroTag: null,
+                // backgroundColor: backgroundColor,
+                mini: true,
+                onPressed: _subActionFunctions[index],
+                child: Icon(_icons[index]),
+              ),
+            ),
+          ),
+        ),
+        FloatingActionButton(
+          heroTag: null,
+          onPressed: () {
+            if (_viewSubActionsController.isDismissed) {
+              _viewSubActionsController.forward();
+            } else {
+              _viewSubActionsController.reverse();
+            }
+          },
+          child: AnimatedBuilder(
+            animation: _viewSubActionsController,
+            builder: (BuildContext context, Widget? child) {
+              return Transform(
+                transform: Matrix4.rotationZ(
+                    _viewSubActionsController.value * 0.5 * math.pi),
+                alignment: FractionalOffset.center,
+                child: Icon(
+                  _viewSubActionsController.isDismissed
+                      ? widget.mainIcon
+                      : Icons.close,
+                  size: _viewSubActionsController.isDismissed ? 32 : 28,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 Widget _mobileBody(
   BuildContext buildContext, {
   required GlobalKey<ScaffoldState> scaffoldKey, // mobile only
   required List<Map<String, dynamic>> clinics,
   required List<Map<String, dynamic>> patients,
-  required void Function({int? newIndex}) moveToPatientPage,
+  required void Function({int? newIndex}) openPatientPage,
   required void Function() openDoctorInfoDialog,
-  required void Function() openClinicInfoDialog,
-  required void Function(int index) onSelectedPatient,
+  required void Function({Clinic? existingClinic}) openClinicInfoDialog,
+  required void Function(int index) onSelectPatient,
+  required void Function(int index) onSelectClinic,
+  required int selectedClinicIndex,
   Doctor? doctor,
 }) {
   return Scaffold(
     key: scaffoldKey,
     appBar: AppBar(
-      backgroundColor: Colors.deepPurple.shade100,
-      title: const Text('Rx Pro'),
+      backgroundColor: Theme.of(buildContext).primaryColor.withAlpha(120),
+      title: const Text(' Rx Pro '),
       centerTitle: false,
       actions: [
         Padding(
@@ -35,15 +133,18 @@ Widget _mobileBody(
           child: TextButton(
             style: lightButtonStyle,
             onPressed: () {
-              if (doctor != null && clinics.isNotEmpty) {
+              if (doctor != null &&
+                  clinics.isNotEmpty &&
+                  selectedClinicIndex >= 0) {
                 Navigator.push(
                     buildContext,
                     MaterialPageRoute(
                       builder: (context) => PrescriptionPage(
                         doctor: doctor,
                         clinic: Clinic(
-                          name: clinics[0]['facility_name'],
-                          address: clinics[0]['facility_addr'],
+                          clinics[selectedClinicIndex]['id'],
+                          name: clinics[selectedClinicIndex]['clinic_name'],
+                          address: clinics[selectedClinicIndex]['clinic_addr'],
                         ),
                       ),
                     ));
@@ -61,6 +162,7 @@ Widget _mobileBody(
     ),
     drawer: Drawer(
       backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
       shape: const RoundedRectangleBorder(),
       child: Container(
         decoration: const BoxDecoration(
@@ -70,8 +172,11 @@ Widget _mobileBody(
           color: Colors.white,
           borderRadius: BorderRadius.all(Radius.circular(8)),
         ),
-        margin: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+        margin: const EdgeInsets.all(20),
+        padding: EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: (doctor != null) ? 20 : 8,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -79,24 +184,26 @@ Widget _mobileBody(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  decoration: const BoxDecoration(
-                      color: LIGHT_PURPLE, shape: BoxShape.circle),
-                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: PURPLE.withAlpha(120),
+                    shape: BoxShape.circle,
+                  ),
+                  padding: EdgeInsets.all((doctor != null) ? 8 : 16),
                   child: Text(
                     (doctor != null)
-                        ? '''${doctor.firstName[0].toString().toUpperCase()}${doctor.lastName[0].toString().toUpperCase()}'''
-                        : 'DR',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 18,
-                    ),
+                        ? '${doctor.firstName[0].toUpperCase()}${doctor.lastName[0].toUpperCase()}'
+                        : '?',
+                    style:
+                        Theme.of(buildContext).textTheme.titleLarge!.copyWith(
+                              color: INDIGO,
+                            ),
                   ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Text(
                     (doctor != null)
-                        ? '${doctor.firstName} ${doctor.middleName[0]}. ${doctor.lastName}, ${doctor.title}'
+                        ? '${doctor.firstName}${doctor.middleName != null ? ' ${doctor.middleName![0]}.' : ''} ${doctor.lastName}, ${doctor.title}'
                         : 'No name',
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
@@ -105,16 +212,38 @@ Widget _mobileBody(
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Text(
-              doctor?.specialty ?? 'No specialty',
-              style: const TextStyle(fontStyle: FontStyle.italic),
+              (doctor != null)
+                  ? 'License no.: ${doctor.licenseID}'
+                  : 'Unidentified doctor user',
+              maxLines: 1,
+              style: (doctor != null)
+                  ? const TextStyle(fontWeight: FontWeight.w600)
+                  : const TextStyle(fontStyle: FontStyle.italic),
+              overflow: TextOverflow.ellipsis,
             ),
             Text(
-              doctor?.contact ?? 'No contact information',
-              style: const TextStyle(fontStyle: FontStyle.italic),
+              (doctor != null && doctor.contact != null)
+                  ? 'Contact no.: ${doctor.contact}'
+                  : 'No contact information',
+              maxLines: 1,
+              style: (doctor != null && doctor.contact != null)
+                  ? null
+                  : const TextStyle(fontStyle: FontStyle.italic),
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 12),
+            Text(
+              (doctor != null && doctor.email != null)
+                  ? 'E-mail: ${doctor.email}'
+                  : 'No e-mail address',
+              maxLines: 1,
+              style: (doctor != null && doctor.email != null)
+                  ? null
+                  : const TextStyle(fontStyle: FontStyle.italic),
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 24),
             TextButton(
               style: lightButtonStyle,
               onPressed: openDoctorInfoDialog,
@@ -133,7 +262,7 @@ Widget _mobileBody(
                   ),
                 ),
                 IconButton(
-                  onPressed: openClinicInfoDialog,
+                  onPressed: () => openClinicInfoDialog(),
                   icon: const Icon(
                     Icons.add,
                     color: BLUE,
@@ -149,16 +278,28 @@ Widget _mobileBody(
                   decoration: lightContainerDecoration,
                   margin: const EdgeInsets.symmetric(vertical: 8),
                   padding: EdgeInsets.zero,
-                  child: ListTile(
-                    onTap: openClinicInfoDialog,
-                    title: Text(
-                      clinics[index]['facility_name'],
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                  child: GestureDetector(
+                    onTap: () => onSelectClinic(index),
+                    onDoubleTap: () => openClinicInfoDialog(
+                      existingClinic: Clinic(
+                        clinics[index]['id'],
+                        name: clinics[index]['clinic_name'],
+                        address: clinics[index]['clinic_addr'],
                       ),
                     ),
-                    subtitle: Text(clinics[index]['facility_addr']),
+                    child: ListTile(
+                      selected: selectedClinicIndex == index,
+                      title: Text(
+                        clinics[index]['clinic_name'],
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: Text(
+                        clinics[index]['clinic_addr'],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -184,9 +325,8 @@ Widget _mobileBody(
                 ),
               ),
               IconButton(
-                onPressed: () => moveToPatientPage(newIndex: -1),
+                onPressed: () => openPatientPage(newIndex: -1),
                 style: primaryButtonStyle,
-                color: LIGHT,
                 icon: const Icon(Icons.add),
               ),
             ],
@@ -195,7 +335,7 @@ Widget _mobileBody(
         Expanded(
           child: PatientsDataTable(
             patients: patients,
-            onSelected: onSelectedPatient,
+            onSelected: onSelectPatient,
           ),
         ),
       ],
@@ -207,15 +347,17 @@ Widget _desktopBody(
   BuildContext buildContext, {
   required List<Map<String, dynamic>> clinics,
   required List<Map<String, dynamic>> patients,
-  required void Function({int? newIndex}) moveToPatientPage,
+  required void Function({int? newIndex}) openPatientPage,
   required void Function() openDoctorInfoDialog,
-  required void Function() openClinicInfoDialog,
-  required void Function(int index) onSelectedPatient,
+  required void Function({Clinic? existingClinic}) openClinicInfoDialog,
+  required void Function(int index) onSelectPatient,
+  required void Function(int index) onSelectClinic,
+  required int selectedClinicIndex,
   Doctor? doctor,
 }) {
   return Scaffold(
     appBar: AppBar(
-      backgroundColor: Colors.deepPurple.shade100,
+      backgroundColor: Theme.of(buildContext).primaryColor.withAlpha(120),
       title: const Text(' Rx Pro '),
       centerTitle: false,
       actions: [
@@ -224,15 +366,18 @@ Widget _desktopBody(
           child: TextButton(
             style: lightButtonStyle,
             onPressed: () {
-              if (doctor != null && clinics.isNotEmpty) {
+              if (doctor != null &&
+                  clinics.isNotEmpty &&
+                  selectedClinicIndex >= 0) {
                 Navigator.push(
                     buildContext,
                     MaterialPageRoute(
                       builder: (context) => PrescriptionPage(
                         doctor: doctor,
                         clinic: Clinic(
-                          name: clinics[0]['facility_name'],
-                          address: clinics[0]['facility_addr'],
+                          clinics[selectedClinicIndex]['id'],
+                          name: clinics[selectedClinicIndex]['clinic_name'],
+                          address: clinics[selectedClinicIndex]['clinic_addr'],
                         ),
                       ),
                     ));
@@ -247,6 +392,18 @@ Widget _desktopBody(
           ),
         ),
       ],
+    ),
+    floatingActionButton: FloatingActionButton(
+      onPressed: () {
+        showDialog(
+          barrierDismissible: false,
+          context: buildContext,
+          builder: (context) => ImageCarousel(
+            [AssetImage('assets/images/rx.png')],
+            ['prescription logo'],
+          ),
+        );
+      },
     ),
     body: Row(
       children: [
@@ -264,7 +421,10 @@ Widget _desktopBody(
               borderRadius: BorderRadius.all(Radius.circular(8)),
             ),
             margin: const EdgeInsets.all(20),
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+            padding: EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: (doctor != null) ? 20 : 8,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -272,24 +432,28 @@ Widget _desktopBody(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Container(
-                      decoration: const BoxDecoration(
-                          color: LIGHT_PURPLE, shape: BoxShape.circle),
-                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: PURPLE.withAlpha(120),
+                        shape: BoxShape.circle,
+                      ),
+                      padding: EdgeInsets.all((doctor != null) ? 8 : 16),
                       child: Text(
                         (doctor != null)
-                            ? '''${doctor.firstName[0].toString().toUpperCase()}${doctor.lastName[0].toString().toUpperCase()}'''
-                            : 'DR',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 18,
-                        ),
+                            ? '${doctor.firstName[0].toUpperCase()}${doctor.lastName[0].toUpperCase()}'
+                            : '?',
+                        style: Theme.of(buildContext)
+                            .textTheme
+                            .titleLarge!
+                            .copyWith(
+                              color: INDIGO,
+                            ),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Text(
                         (doctor != null)
-                            ? '${doctor.firstName} ${doctor.middleName[0]}. ${doctor.lastName}, ${doctor.title}'
+                            ? '${doctor.firstName}${doctor.middleName != null ? ' ${doctor.middleName![0]}.' : ''} ${doctor.lastName}, ${doctor.title}'
                             : 'No name',
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
@@ -298,16 +462,38 @@ Widget _desktopBody(
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 Text(
-                  doctor?.specialty ?? 'No specialty',
-                  style: const TextStyle(fontStyle: FontStyle.italic),
+                  (doctor != null)
+                      ? 'License no.: ${doctor.licenseID}'
+                      : 'Unidentified doctor user',
+                  maxLines: 1,
+                  style: (doctor != null)
+                      ? const TextStyle(fontWeight: FontWeight.w600)
+                      : const TextStyle(fontStyle: FontStyle.italic),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  doctor?.contact ?? 'No contact information',
-                  style: const TextStyle(fontStyle: FontStyle.italic),
+                  (doctor != null && doctor.contact != null)
+                      ? 'Contact no.: ${doctor.contact}'
+                      : 'No contact information',
+                  maxLines: 1,
+                  style: (doctor != null && doctor.contact != null)
+                      ? null
+                      : const TextStyle(fontStyle: FontStyle.italic),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 12),
+                Text(
+                  (doctor != null && doctor.email != null)
+                      ? 'E-mail: ${doctor.email}'
+                      : 'No e-mail address',
+                  maxLines: 1,
+                  style: (doctor != null && doctor.email != null)
+                      ? null
+                      : const TextStyle(fontStyle: FontStyle.italic),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 24),
                 TextButton(
                   style: lightButtonStyle,
                   onPressed: openDoctorInfoDialog,
@@ -326,7 +512,7 @@ Widget _desktopBody(
                       ),
                     ),
                     IconButton(
-                      onPressed: openClinicInfoDialog,
+                      onPressed: () => openClinicInfoDialog(),
                       icon: const Icon(
                         Icons.add,
                         color: BLUE,
@@ -342,16 +528,28 @@ Widget _desktopBody(
                       decoration: lightContainerDecoration,
                       margin: const EdgeInsets.symmetric(vertical: 8),
                       padding: EdgeInsets.zero,
-                      child: ListTile(
-                        onTap: openClinicInfoDialog,
-                        title: Text(
-                          clinics[index]['facility_name'],
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                      child: GestureDetector(
+                        onTap: () => onSelectClinic(index),
+                        onDoubleTap: () => openClinicInfoDialog(
+                          existingClinic: Clinic(
+                            clinics[index]['id'],
+                            name: clinics[index]['clinic_name'],
+                            address: clinics[index]['clinic_addr'],
                           ),
                         ),
-                        subtitle: Text(clinics[index]['facility_addr']),
+                        child: ListTile(
+                          selected: selectedClinicIndex == index,
+                          title: Text(
+                            clinics[index]['clinic_name'],
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Text(
+                            clinics[index]['clinic_addr'],
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -380,9 +578,9 @@ Widget _desktopBody(
                       ),
                     ),
                     IconButton(
-                      onPressed: () => moveToPatientPage(newIndex: -1),
+                      onPressed: () => openPatientPage(newIndex: -1),
                       style: primaryButtonStyle,
-                      color: LIGHT,
+                      padding: EdgeInsets.zero,
                       icon: const Icon(Icons.add),
                     ),
                   ],
@@ -391,7 +589,7 @@ Widget _desktopBody(
               Expanded(
                 child: PatientsDataTable(
                   patients: patients,
-                  onSelected: onSelectedPatient,
+                  onSelected: onSelectPatient,
                 ),
               ),
             ],
@@ -414,6 +612,7 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
   late final RxProDbHelper _dbHelper;
   List<Map<String, dynamic>> _patients = [];
   Doctor? _doctor;
+  int _selectedClinicIndex = -1;
   List<Map<String, dynamic>> _clinics = [];
   int? _selectedPatientIndex;
 
@@ -422,59 +621,49 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
   @override
   void initState() {
     super.initState();
-    _initializeDatabase(onEmptyDoctor: _onEmptyDoctor).then(
+    _initializeDatabase().then(
       (value) => setState(() {}),
     );
   }
 
-  void _onEmptyDoctor() {
-    double width = MediaQuery.sizeOf(context).width;
-    if (width < 760) {
-      // open drawer if mobile view
-      _scaffoldKey.currentState!.openDrawer();
-    } else {
-      // display SnackBar if desktop view
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text(
-          'Please provide missing doctor and/or clinic information.',
-        ),
-        duration: Duration(milliseconds: 800),
-      ));
-    }
-  }
-
-  Future<void> _initializeDatabase({required Function() onEmptyDoctor}) async {
+  Future<void> _initializeDatabase() async {
     _dbHelper = RxProDbHelper.instance;
     _database = await _dbHelper.database;
 
     _patients = await _dbHelper.getItems(tableName: 'patient');
 
+    _clinics = await _dbHelper.getItems(tableName: 'clinic');
+    if (_clinics.isNotEmpty) {
+      _selectedClinicIndex = 0;
+    }
+
     var doctors = await _dbHelper.getItems(tableName: 'doctor');
     if (doctors.isNotEmpty) {
       Map<String, dynamic> doctor = doctors[0];
       _doctor = Doctor(
+        doctor['license_id'],
         firstName: doctor['first_name'],
         middleName: doctor['middle_name'],
         lastName: doctor['last_name'],
         title: doctor['title'] ?? 'MD',
-        specialty: doctor['specialty'],
+        contact: doctor['contact'],
+        email: doctor['email'],
       );
     } else {
-      onEmptyDoctor();
+      await _openDoctorInfoDialog();
+      _scaffoldKey.currentState!.openDrawer();
     }
-
-    _clinics = await _dbHelper.getItems(tableName: 'hc_facility');
   }
 
-  void _refreshPatientsList() async {
+  Future<void> _refreshPatientsList() async {
     _patients = await _dbHelper.getItems(tableName: 'patient');
   }
 
-  void _refreshClinicsList() async {
-    _clinics = await _dbHelper.getItems(tableName: 'hc_facility');
+  Future<void> _refreshClinicsList() async {
+    _clinics = await _dbHelper.getItems(tableName: 'clinic');
   }
 
-  void _moveToPatientPage({int? newIndex}) async {
+  void _openPatientPage({int? newIndex}) async {
     if (newIndex != null) {
       _selectedPatientIndex = (newIndex < 0) ? null : newIndex;
     }
@@ -483,35 +672,25 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
       Patient? newPatient = await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => PatientPage(
-            doctor: _doctor,
-            clinic: _clinics.isEmpty
-                ? null
-                : Clinic(
-                    name: _clinics[0]['facility_name'],
-                    address: _clinics[0]['facility_addr'],
-                  ),
-          ),
+          builder: (context) => const PatientProfilePage(),
         ),
       );
 
       if (newPatient != null) {
-        _dbHelper.addPatient(
-          firstName: newPatient.firstName,
-          middleName: newPatient.middleName,
-          lastName: newPatient.lastName,
-          birthDate: newPatient.birthDate,
-          sex: newPatient.sex,
-          mobile: newPatient.contact,
-        );
+        await _dbHelper.addPatient(newPatient);
+        int? nextID = await _dbHelper.getNextIncrement('patient');
+        await _refreshPatientsList();
         setState(() {
-          _refreshPatientsList();
+          _openPatientPage(
+            newIndex: _patients.indexWhere(
+              (patient) => patient['id'] == nextID,
+            ),
+          );
         });
       }
     } else {
       Map<String, dynamic> selectedPatient = _patients[_selectedPatientIndex!];
-
-      var updatedPatient = await Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => PatientPage(
@@ -519,65 +698,88 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
             clinic: _clinics.isEmpty
                 ? null
                 : Clinic(
-                    name: _clinics[0]['facility_name'],
-                    address: _clinics[0]['facility_addr'],
+                    _clinics[_selectedClinicIndex]['id'],
+                    name: _clinics[_selectedClinicIndex]['clinic_name'],
+                    address: _clinics[_selectedClinicIndex]['clinic_addr'],
                   ),
-            existingPatient: Patient(
+            patient: Patient(
+              selectedPatient['id'],
               firstName: selectedPatient['first_name'],
               middleName: selectedPatient['middle_name'],
               lastName: selectedPatient['last_name'],
               sex: selectedPatient['sex'],
-              contact: selectedPatient['mobile'],
+              contact: selectedPatient['contact'],
               birthDate: DateTime.parse(selectedPatient['birthdate']),
+              address: selectedPatient['addr'],
+              erName: selectedPatient['er_name'],
+              erRelation: selectedPatient['er_rel'],
+              erAddress: selectedPatient['er_addr'],
+              erContact: selectedPatient['er_contact'],
             ),
           ),
         ),
       );
 
-      if (updatedPatient.runtimeType == bool && !updatedPatient) {
-        // the patient's information was deleted
-        _database!.execute(
-          'DELETE FROM patient WHERE id = ?',
-          [selectedPatient['id']],
-        );
-      } else if (updatedPatient.runtimeType == Patient) {
-        _database!.execute(
-          '''
-          UPDATE patient SET first_name = ?, middle_name = ?, last_name = ?, sex = ?, birthdate = ?, mobile = ?
-          WHERE id = ?
-          ''',
-          [
-            updatedPatient!.firstName,
-            updatedPatient!.middleName,
-            updatedPatient!.lastName,
-            updatedPatient!.sex,
-            updatedPatient!.birthDate.toString(),
-            updatedPatient.contact,
-            selectedPatient['id'],
-          ],
-        );
-
-        _selectedPatientIndex = null;
-        setState(() {
-          _refreshPatientsList();
-        });
-      }
+      _selectedPatientIndex = null;
+      setState(() {
+        _refreshPatientsList();
+      });
     }
   }
 
-  Future<void> _openClinicInfoDialog() async {
-    Clinic? newClinic = await showDialog(
+  Future<void> _openClinicInfoDialog({Clinic? existingClinic}) async {
+    var newClinic = await showDialog(
       context: context,
-      builder: (context) => const ClinicInfoDialog(),
+      builder: (context) => ClinicInfoDialog(existingClinic: existingClinic),
     );
 
-    if (newClinic != null) {
+    if (existingClinic != null && newClinic.runtimeType == bool && !newClinic) {
+      // remove clinic from list
       _database!.execute(
-        'INSERT INTO hc_facility (facility_name, facility_addr) VALUES (?, ?)',
-        [newClinic.name, newClinic.address],
+        'DELETE FROM clinic WHERE id = ?',
+        [_clinics[_selectedClinicIndex]['id']],
+      );
+
+      setState(() {
+        _refreshClinicsList();
+        if (_clinics.isNotEmpty) {
+          // select the first clinic in the list
+          _selectedClinicIndex = 0;
+        } else {
+          // unset selected clinic
+          _selectedClinicIndex = -1;
+        }
+      });
+    } else if (existingClinic != null && newClinic.runtimeType == Clinic) {
+      // update existing clinic's information
+      _database!.execute(
+        'UPDATE clinic SET clinic_name = ?, clinic_addr = ?, contact = ?, email = ? WHERE id = ?',
+        [
+          newClinic.name,
+          newClinic.address,
+          newClinic.contact,
+          newClinic.contact,
+          existingClinic.id,
+        ],
+      );
+
+      setState(() {
+        _refreshClinicsList();
+      });
+    } else if (newClinic.runtimeType == Clinic) {
+      // adding new clinc to the list
+      _database!.execute(
+        'INSERT INTO clinic (clinic_name, clinic_addr, contact, email) VALUES (?, ?, ?, ?)',
+        [
+          newClinic.name,
+          newClinic.address,
+          newClinic.contact,
+          newClinic.contact,
+        ],
       );
       setState(() {
         _refreshClinicsList();
+        _selectedClinicIndex = 0;
       });
     }
   }
@@ -590,14 +792,19 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
 
     if (_doctor != null && doctor != null) {
       _database!.execute(
-        'UPDATE doctor SET first_name = ?, middle_name = ?, last_name = ?, specialty = ?, contact = ? WHERE id = ?',
+        '''
+        UPDATE doctor SET license_id = ?, first_name = ?, middle_name = ?, last_name = ?, 
+        title = ?, contact = ?, email = ? WHERE id = ?
+        ''',
         [
+          doctor.licenseID,
           doctor.firstName,
           doctor.middleName,
           doctor.lastName,
-          doctor.specialty,
+          doctor.title,
           doctor.contact,
-          1
+          doctor.email,
+          _doctor!.licenseID,
         ],
       );
       setState(() {
@@ -606,16 +813,17 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
     } else if (doctor != null) {
       _database!.execute(
         '''
-        INSERT INTO doctor (first_name, middle_name, last_name, title, specialty, contact) 
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO doctor (license_id, first_name, middle_name, last_name, title, contact, email) 
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ''',
         [
+          doctor.licenseID,
           doctor.firstName,
           doctor.middleName,
           doctor.lastName,
           doctor.title,
-          doctor.specialty,
-          doctor.contact
+          doctor.contact,
+          doctor.email,
         ],
       );
       setState(() {
@@ -624,9 +832,15 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
     }
   }
 
-  void _onSelectedPatient(int index) {
+  void _onSelectPatient(int index) {
     _selectedPatientIndex = index;
-    _moveToPatientPage();
+    _openPatientPage();
+  }
+
+  void _onSelectClinic(int index) {
+    setState(() {
+      _selectedClinicIndex = index;
+    });
   }
 
   @override
@@ -640,12 +854,14 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
             clinics: _clinics,
             patients: _patients,
             doctor: _doctor,
-            moveToPatientPage: _moveToPatientPage,
+            openPatientPage: _openPatientPage,
             openDoctorInfoDialog: _openDoctorInfoDialog,
             openClinicInfoDialog: _openClinicInfoDialog,
-            onSelectedPatient: _onSelectedPatient,
+            onSelectPatient: _onSelectPatient,
+            onSelectClinic: _onSelectClinic,
+            selectedClinicIndex: _selectedClinicIndex,
           ),
-          // less than 480px width is considered mobile
+          // less than 760px width is considered mobile
           breakpoint: 760,
         ),
         Layout(
@@ -654,10 +870,12 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
             clinics: _clinics,
             patients: _patients,
             doctor: _doctor,
-            moveToPatientPage: _moveToPatientPage,
+            openPatientPage: _openPatientPage,
             openDoctorInfoDialog: _openDoctorInfoDialog,
             openClinicInfoDialog: _openClinicInfoDialog,
-            onSelectedPatient: _onSelectedPatient,
+            onSelectPatient: _onSelectPatient,
+            onSelectClinic: _onSelectClinic,
+            selectedClinicIndex: _selectedClinicIndex,
           ),
           // default screen if width does not fall in other screen categories
           breakpoint: double.infinity,
