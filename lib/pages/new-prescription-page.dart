@@ -219,7 +219,7 @@ Widget _mobileBody(
                                 text: 'Sex assigned at birth: ',
                                 children: <TextSpan>[
                                   TextSpan(
-                                    text: sex[patient.sex],
+                                    text: patient.sexText,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -516,7 +516,7 @@ Widget _desktopBody(
                         text: 'Sex assigned at birth: ',
                         children: <TextSpan>[
                           TextSpan(
-                            text: sex[patient.sex],
+                            text: patient.sexText,
                             style: const TextStyle(
                               fontWeight: FontWeight.w600,
                             ),
@@ -790,7 +790,7 @@ class _PrescriptionPageState extends State<PrescriptionPage> {
           patientName:
           '${_patient!.firstName}${_patient!.middleName == null ? '' : ' ${_patient!.middleName![0]}.'} ${_patient!.lastName}',
           patientAge: getAge(_patient!.birthDate).toString(),
-          patientSex: sex[_patient!.sex] ?? 'N/A',
+          patientSex: _patient!.sexText,
         ),
       ),
     ).then((isClosed) {

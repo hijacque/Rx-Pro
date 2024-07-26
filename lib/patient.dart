@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:rxpro_app/style.dart';
 import 'package:rxpro_app/utils.dart';
 
+const Map<int, String> _sex = {1: 'MALE', 2: 'FEMALE', 3: 'INTERSEX'};
+
 class Patient {
   final int id;
   final String firstName;
@@ -32,6 +34,8 @@ class Patient {
     this.erContact,
     this.erAddress,
   });
+
+  String get sexText => _sex[sex] ?? 'N/A';
 }
 
 class PatientsDataTable extends StatelessWidget {
