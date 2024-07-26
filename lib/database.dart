@@ -4,6 +4,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'dart:io';
 
+import 'package:rxpro_app/patient.dart';
+
 class RxProDbHelper {
   // Private constructor
   RxProDbHelper._privateConstructor();
@@ -36,29 +38,73 @@ class RxProDbHelper {
     return db;
   }
 
-  Future<void> addPatient({
-    required String firstName,
-    required String middleName,
-    required String lastName,
-    required DateTime birthDate,
-    required int sex,
-    String? mobile,
-  }) async {
+  Future<void> addPatient(Patient patient) async {
     _database!.execute(
       '''
-    INSERT INTO patient(first_name, middle_name, last_name, birthdate, sex, mobile) VALUES (?, ?, ?, ?, ?, ?)
-    ''',
-      [firstName, middleName, lastName, birthDate.toString(), sex, mobile],
+      INSERT INTO patient(first_name, middle_name, last_name, birthdate, sex, 
+      addr, contact, er_name, er_rel, er_addr, er_contact) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ''',
+      [
+        patient.firstName,
+        patient.middleName,
+        patient.lastName,
+        patient.birthDate.toString(),
+        patient.sex,
+        patient.address,
+        patient.contact,
+        patient.erName,
+        patient.erRelation,
+        patient.erAddress,
+        patient.erContact,
+      ],
     );
+  }
+
+  Future<List<Map<String, dynamic>>> select(
+    String query, {
+    List params = const [],
+  }) async {
+    final ResultSet result = _database!.select(query, params);
+    return result.map((row) => {...row}).toList();
   }
 
   Future<List<Map<String, dynamic>>> getItems({
     required String tableName,
     int? limit,
+    String? condition,
+    bool? ascendingOrder,
+    List<String> columnOrder = const [],
+    List<String> columns = const [],
+    List conditionParams = const [],
   }) async {
+    String orderClause = '';
+    if (columnOrder.isNotEmpty) {
+      orderClause =
+          ' ORDER BY ${columnOrder.join(', ')} ${(ascendingOrder == null) ? '' : ascendingOrder ? 'ASC' : 'DSC'}';
+    }
+
+    String whereClause = (condition == null) ? '' : ' WHERE $condition';
+    String limitClause = (limit == null) ? '' : ' LIMIT $limit';
+
     final ResultSet result = _database!.select(
-      'SELECT * FROM $tableName${limit != null ? ' LIMIT $limit' : ''}',
+      '''
+      SELECT ${columns.isEmpty ? '*' : columns.join(', ')} 
+      FROM $tableName$whereClause$orderClause$limitClause
+      ''',
+      conditionParams,
     );
-    return result.map((row) => row).toList();
+
+    return result.map((row) => {...row}).toList();
+  }
+
+  Future<int?> getNextIncrement(String tableName) async {
+    final ResultSet result = _database!.select('SELECT last_insert_rowid()');
+
+    if (result.isNotEmpty) {
+      return result.first.values[0] as int;
+    } else {
+      return null;
+    }
   }
 }
